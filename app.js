@@ -152,12 +152,16 @@ function finishOnboarding() {
 }
 
 // ================================================================
-// 5. 语音识别功能（Web Speech API）
+// 5. 语音识别功能
 // ================================================================
 let recognition = null;
 let isListening = false;
 
 function setupVoice() {
+    if (!window.isSecureContext) {
+        showToast('❌ 语音功能需要在 HTTPS 或 localhost 环境下使用');
+        return;
+    }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
         showToast('❌ 当前浏览器不支持语音识别，请使用 Chrome 或 Edge');
@@ -170,13 +174,10 @@ function setupVoice() {
 
     recognition.onresult = function(event) {
         const transcript = event.results[0][0].transcript;
-        // 根据当前是哪个按钮打开的语音，填入对应的输入框
         if (document.getElementById('feedbackModal').classList.contains('show')) {
-            const input = document.getElementById('feedbackInput');
-            input.value = transcript;
+            document.getElementById('feedbackInput').value = transcript;
         } else if (document.getElementById('newGoalModal').classList.contains('show')) {
-            const input = document.getElementById('newGoalInput');
-            input.value = transcript;
+            document.getElementById('newGoalInput').value = transcript;
         }
         stopListening();
     };
@@ -184,9 +185,7 @@ function setupVoice() {
         showToast('❌ 语音识别失败: ' + event.error);
         stopListening();
     };
-    recognition.onend = function() {
-        stopListening();
-    };
+    recognition.onend = function() { stopListening(); };
 }
 
 function startListening() {
@@ -204,7 +203,6 @@ function stopListening() {
     showToast('语音输入结束');
 }
 
-// 绑定语音按钮（注意：这需要浏览器开启麦克风权限且需HTTPS）
 document.addEventListener('DOMContentLoaded', () => {
     const feedbackBtn = document.getElementById('feedbackVoiceBtn');
     const goalBtn = document.getElementById('newGoalVoiceBtn');
@@ -213,10 +211,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ================================================================
-// 6. AI 真实接入（接入后端 API）
+// 6. AI 真实接入
 // ================================================================
-
-// 生成目标计划
 async function generateAIPlan() {
     const text = document.getElementById('newGoalInput').value.trim();
     const days = parseInt(document.getElementById('goalDays').value);
@@ -232,28 +228,25 @@ async function generateAIPlan() {
         const response = await fetch('/api/generate-plan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                goal: text,
-                days: days,
-                bio: userProfile.bio || '',
-                expect: userProfile.expect || ''
-            })
+            body: JSON.stringify({ goal: text, days: days, bio: userProfile.bio || '', expect: userProfile.expect || '' })
         });
         const data = await response.json();
 
         if (data.tasks && data.tasks.length > 0) {
-            // 后端返回的是 [{day:1, task:"..."}] 格式
+            let editableTasks = data.tasks.map((t, i) => `
+                <div style="margin-bottom:8px; display:flex; gap:8px; align-items:center;">
+                    <span style="font-size:13px; font-weight:bold; min-width:45px; color:var(--text-secondary);">第${t.day}天</span>
+                    <input type="text" id="task-${i}" value="${t.task}" style="flex:1; font-size:14px;">
+                </div>
+            `).join('');
+
             document.getElementById('aiPlanContent').innerHTML = `
                 <div class="text-secondary" style="margin-bottom:6px;">📌 ${text}</div>
-                <div style="font-weight:500; margin:6px 0;">📅 每日修炼（共 ${days} 天）</div>
-                ${data.tasks.slice(0, 5).map(t => `<div style="padding:4px 0; border-bottom:1px solid var(--card-border); font-size:14px;">第${t.day}天：${t.task}</div>`).join('')}
-                ${days > 5 ? `<div class="text-secondary" style="margin-top:6px;">… 共 ${days} 天</div>` : ''}
+                <div style="font-weight:500; margin:6px 0;">📅 每日修炼（你可以直接修改下面的任务）：</div>
+                ${editableTasks}
             `;
-            // 保存完整的计划
-            window._tempPlan = {
-                title: text,
-                tasks: data.tasks.map(t => `第${t.day}天：${t.task}`)
-            };
+
+            window._tempPlan = { title: text, tasks: data.tasks.map((t, i) => ({ day: t.day, task: document.getElementById(`task-${i}`).value })) };
         } else {
             throw new Error('AI返回格式错误');
         }
@@ -266,12 +259,20 @@ async function generateAIPlan() {
 function confirmNewGoal() {
     const plan = window._tempPlan;
     if (!plan) { alert('请先生成AI计划'); return; }
+    
+    const finalTasks = [];
+    for (let i = 0; i < plan.tasks.length; i++) {
+        const input = document.getElementById(`task-${i}`);
+        if (input) finalTasks.push(input.value);
+        else finalTasks.push(plan.tasks[i].task);
+    }
+
     const newGoal = {
         id: 'g'+Date.now(),
         title: plan.title,
         status: 'active',
         totalXp: 0,
-        tasks: plan.tasks.map((t, idx) => ({ id: 't'+Date.now()+idx, title: t, status: 'pending', feedback: '', feedbackReply: '' })),
+        tasks: finalTasks.map((t, idx) => ({ id: 't'+Date.now()+idx, title: t, status: 'pending', feedback: '', feedbackReply: '' })),
         history: []
     };
     goals.push(newGoal);
@@ -282,7 +283,6 @@ function confirmNewGoal() {
     window._tempPlan = null;
 }
 
-// 打卡并获取 AI 反馈
 async function submitFeedback() {
     const feedback = document.getElementById('feedbackInput').value.trim();
     if (!feedback) { alert('请写下你的今日感悟'); return; }
@@ -293,14 +293,12 @@ async function submitFeedback() {
     const task = g.tasks.find(t => t.id === pendingCheckinTaskId);
     if (!task || task.status === 'done') return;
 
-    // 先给用户一个等待提示
     const submitBtn = document.querySelector('.feedback-modal-box .btn-primary');
     const originalText = submitBtn.textContent;
     submitBtn.textContent = '⏳ AI 反馈生成中...';
     submitBtn.disabled = true;
 
     try {
-        // 调用后端 API
         const response = await fetch('/api/process-feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -308,21 +306,14 @@ async function submitFeedback() {
         });
         const result = await response.json();
 
-        // 更新任务状态
         task.status = 'done';
         task.feedback = feedback;
         task.feedbackReply = result.reply || '继续加油！';
-
-        // 计算 XP：基础15分 + AI 给的额外加成（0~15）
         const xpGain = 15 + (result.xpBonus || 0);
         g.totalXp += xpGain;
 
         const dayNum = g.tasks.indexOf(task) + 1;
-        g.history.push({
-            date: new Date().toLocaleDateString('zh-CN'),
-            action: `第${dayNum}天打卡: ${feedback.slice(0, 20)}${feedback.length > 20 ? '...' : ''}`,
-            xp: xpGain
-        });
+        g.history.push({ date: new Date().toLocaleDateString('zh-CN'), action: `第${dayNum}天打卡: ${feedback.slice(0, 20)}${feedback.length > 20 ? '...' : ''}`, xp: xpGain });
 
         const allDone = g.tasks.every(t => t.status === 'done');
         if (allDone) g.status = 'completed';
@@ -338,6 +329,15 @@ async function submitFeedback() {
         submitBtn.textContent = originalText;
         submitBtn.disabled = false;
     }
+}
+
+function deleteGoal(goalId) {
+    if (!confirm('确定要删除这个目标吗？所有打卡记录将永久丢失！')) return;
+    goals = goals.filter(g => g.id !== goalId);
+    saveData();
+    closeDetail();
+    updateAllUI();
+    showToast('🗑️ 目标已删除');
 }
 
 // ================================================================
