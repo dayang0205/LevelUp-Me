@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="sage">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AI 修炼 · 灵犀版</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="phone" id="app">
+    <div class="status-bar"><span>今日 · 灵犀</span><span>⚡ 心流</span></div>
+    
+    <div class="main-content">
+        <!-- ==================== 道场 ==================== -->
+        <div class="page active" id="page-home">
+            <div class="page-header">
+                <span class="title"><span class="emoji">🏠</span>道场</span>
+                <div class="theme-toggler" onclick="toggleThemeDropdown()">
+                    <span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">主题</span>
+                    <span class="current-dot" id="headerThemeDot" style="background:var(--primary);"></span>
+                    <span class="arrow">▾</span>
+                    <div class="theme-dropdown" id="themeDropdown">
+                        <div class="theme-option" data-theme="sage" onclick="switchTheme('sage')">
+                            <span class="dot" style="background:#9CAF8D;"></span> 鼠尾草绿
+                            <span class="check" id="check-sage">✓</span>
+                        </div>
+                        <div class="theme-option" data-theme="rose" onclick="switchTheme('rose')">
+                            <span class="dot" style="background:#D4B5B0;"></span> 灰粉玫瑰
+                            <span class="check" id="check-rose"></span>
+                        </div>
+                        <div class="theme-option" data-theme="mist" onclick="switchTheme('mist')">
+                            <span class="dot" style="background:#A2B9C9;"></span> 雾霾蓝
+                            <span class="check" id="check-mist"></span>
+                        </div>
+                        <div class="theme-option" data-theme="dark" onclick="switchTheme('dark')">
+                            <span class="dot" style="background:#6B6B6B;"></span> 暗夜墨灰
+                            <span class="check" id="check-dark"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="home-top">
+                <div class="home-avatar" id="homeAvatar" onclick="editAvatar()">🧘</div>
+                <div class="home-name-area" onclick="editName()">
+                    <div class="name" id="homeName">无名道友</div>
+                    <div class="sub">
+                        <span class="realm-tag" id="homeRealmTag">凡人</span>
+                        <span class="edit-hint">✎ 点我编辑</span>
+                    </div>
+                </div>
+                <span style="font-size:14px; font-weight:600; color:var(--text);">⭐ <span id="totalXpHome">0</span></span>
+            </div>
+
+            <div class="realm-header">
+                <div class="realm-badge">
+                    <span class="level-icon" id="realmEmoji">🧘</span>
+                    <span class="realm-name" id="realmName">凡人</span>
+                    <span class="realm-sub" id="realmLevel">Lv.0</span>
+                </div>
+            </div>
+            <div class="xp-bar-container"><div class="xp-bar-fill" id="xpBarHome"></div></div>
+            <div class="flex-between" style="font-size:12px; color:var(--text-secondary); margin:2px 0 14px;">
+                <span>下一境: <span id="nextRealmName">炼气</span></span>
+                <span id="xpProgressText">0 / 100</span>
+            </div>
+
+            <div class="flex-between" style="margin: 12px 0 8px;">
+                <h4 style="font-weight:600; font-size:16px;">⚔️ 当前修炼</h4>
+                <span class="text-secondary" style="font-size:13px;" id="activeCount">0 个</span>
+            </div>
+            <div id="activeGoalsContainer"></div>
+
+            <button class="new-goal-btn" onclick="openNewGoalModal()">➕ 立下新目标</button>
+        </div>
+
+        <!-- ==================== 目标录 ==================== -->
+        <div class="page" id="page-goals">
+            <div class="page-header">
+                <span class="title"><span class="emoji">📜</span>目标录</span>
+            </div>
+            <div class="view-tabs" id="goalViewTabs">
+                <button class="active" data-view="active">修炼中</button>
+                <button data-view="completed">已达成</button>
+            </div>
+            <div id="goalListContainer"></div>
+        </div>
+
+        <!-- ==================== 我的法相 ==================== -->
+        <div class="page" id="page-profile">
+            <div class="page-header">
+                <span class="title"><span class="emoji">🧘</span>我的法相</span>
+            </div>
+
+            <div class="profile-section" style="text-align:center; padding-bottom:14px;">
+                <div class="profile-avatar-lg" id="profileAvatar" onclick="editAvatar()">🧘</div>
+                <input class="profile-name-input" id="profileNameInput" value="无名道友" onchange="updateProfileFromName()" placeholder="输入道号">
+                <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">点击头像更换 · 点击道号编辑</div>
+            </div>
+
+            <div class="profile-section profile-bio">
+                <div class="section-label">📝 个人简述 <span class="badge-ai">AI 参考</span></div>
+                <textarea id="userBio" placeholder="简单介绍你自己..." onchange="updateProfile()">一名对自我成长充满热情的探索者。</textarea>
+                <div class="ai-enhance-row">
+                    <button class="btn-ai" onclick="aiEnhance('bio')">✨ AI 润色简述</button>
+                    <span style="font-size:11px; color:var(--text-secondary);">AI 会根据你的简述生成更完整的背景</span>
+                </div>
+            </div>
+
+            <div class="profile-section profile-expect">
+                <div class="section-label">🤖 对 AI 伴侣的期望 <span class="badge-ai">AI 参考</span></div>
+                <textarea id="userExpect" placeholder="你希望 AI 教练以什么风格陪伴你？" onchange="updateProfile()">希望 AI 能温柔而坚定地陪伴我。</textarea>
+                <div class="ai-enhance-row">
+                    <button class="btn-ai" onclick="aiEnhance('expect')">✨ AI 完善期望</button>
+                    <span style="font-size:11px; color:var(--text-secondary);">AI 会帮你细化对教练风格的期待</span>
+                </div>
+            </div>
+
+            <!-- 数据管理 -->
+            <div class="profile-section">
+                <div class="section-label">🗂️ 存档管理 <span class="badge-ai">本地存储</span></div>
+                <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">
+                    你的所有修炼数据都保存在本浏览器中。建议定期「导出存档」备份。
+                </p>
+                <div class="data-mgmt">
+                    <button class="btn-data" onclick="exportData()">📤 导出存档</button>
+                    <label class="btn-data import-btn">
+                        📥 导入存档
+                        <input type="file" accept=".json" onchange="importData(event)">
+                    </label>
+                    <button class="btn-data danger" onclick="resetAllData()">🗑️ 重置所有</button>
+                </div>
+            </div>
+
+            <div class="product-intro">
+                <h4>📖 关于此器</h4>
+                <p>AI 驱动的极简人生教练。将目标化为每日修炼，逐日打卡，记录感悟，获得 AI 反馈。</p>
+                <p style="margin-top:4px;">💾 数据仅存于本地浏览器，导出存档即可永久保存。</p>
+                <p style="margin-top:6px; color:var(--primary);">—— 道阻且长，行则将至。</p>
+            </div>
+        </div>
+
+        <!-- ==================== 详情覆盖层 ==================== -->
+        <div class="detail-overlay" id="detailOverlay">
+            <div class="detail-header">
+                <button class="back-btn" onclick="closeDetail()">←</button>
+                <h2 style="font-size:20px; flex:1;" id="detailTitle">目标</h2>
+                <span class="badge-soft" id="detailStatus">修炼中</span>
+            </div>
+            <div class="card" style="margin-bottom:16px;">
+                <div class="flex-between"><span>修炼进度</span><span style="font-size:28px; font-weight:700; color:var(--primary);" id="detailProgressNum">0%</span></div>
+                <div class="xp-bar-container" style="margin-top:8px;"><div class="xp-bar-fill" id="detailProgressBar"></div></div>
+                <div class="flex-between" style="margin-top:6px; font-size:13px; color:var(--text-secondary);">
+                    <span>已打卡: <strong id="detailDoneDays">0</strong> / <span id="detailTotalDays">0</span> 天</span>
+                    <span>修为: <strong id="detailXp">0</strong></span>
+                </div>
+            </div>
+            <div id="detailTaskList"></div>
+            <div style="margin-top:12px; font-size:13px; color:var(--text-secondary); text-align:center;">
+                点击「打卡」→ 记录今日感悟 → 获得 AI 反馈
+            </div>
+        </div>
+
+        <!-- ==================== 打卡反馈模态框 ==================== -->
+        <div class="feedback-modal-overlay" id="feedbackModal">
+            <div class="feedback-modal-box">
+                <div class="modal-title">📝 记录今日修炼</div>
+                <div class="modal-sub" id="feedbackTaskLabel">第 X 天：任务描述</div>
+                <div class="quick-tags">
+                    <span onclick="insertTag('顺利完成')">✅ 顺利完成</span>
+                    <span onclick="insertTag('遇到困难')">⚠️ 遇到困难</span>
+                    <span onclick="insertTag('收获很大')">💡 收获很大</span>
+                    <span onclick="insertTag('明日改进')">🔧 明日改进</span>
+                </div>
+                <textarea id="feedbackInput" placeholder="写下你的感受、数据、收获或困惑…"></textarea>
+                <div class="flex" style="margin:12px 0;">
+                    <button class="voice-mini-btn" style="border-radius:40px; width:auto; padding:0 20px; gap:6px;" id="feedbackVoiceBtn">🎙️ 语音</button>
+                    <button class="btn-primary" onclick="submitFeedback()" style="padding:10px;">提交并获取 AI 反馈</button>
+                </div>
+                <button class="back-btn" style="color:var(--text-secondary);" onclick="closeFeedbackModal()">取消</button>
+            </div>
+        </div>
+
+        <!-- ==================== 新目标模态框 ==================== -->
+        <div class="modal-overlay" id="newGoalModal">
+            <div class="modal-box">
+                <h3 style="font-weight:700; margin-bottom:8px;">⚔️ 立下新目标</h3>
+                <p class="text-secondary" style="font-size:13px; margin-bottom:12px;">告诉我你想修炼什么，以及计划修炼多少天。</p>
+                <textarea id="newGoalInput" style="min-height:70px;" placeholder="例如：每天跑步3公里，提升体能"></textarea>
+                <div class="flex" style="margin:12px 0;">
+                    <input type="number" id="goalDays" placeholder="修炼天数（如30）" min="1" max="365" style="flex:1;">
+                    <span style="color:var(--text-secondary); font-size:14px;">天</span>
+                </div>
+                <div class="flex" style="margin-bottom:12px;">
+                    <button class="voice-mini-btn" style="border-radius:40px; width:auto; padding:0 20px; gap:6px;" id="newGoalVoiceBtn">🎙️ 语音</button>
+                    <button class="btn-primary" onclick="generateAIPlan()" style="padding:10px;">AI 生成每日计划</button>
+                </div>
+                <div id="aiPlanContainer" style="display:none;">
+                    <div style="background:var(--primary-soft); border-radius:16px; padding:16px; margin:10px 0; border-left:4px solid var(--primary);">
+                        <h4 style="color:var(--text); margin-bottom:6px;">🧠 AI 推演每日功法</h4>
+                        <div id="aiPlanContent"></div>
+                        <button class="btn-primary" style="margin-top:12px;" onclick="confirmNewGoal()">确认，开始修炼</button>
+                    </div>
+                </div>
+                <button class="back-btn" style="margin-top:6px; color:var(--text-secondary);" onclick="closeModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 底部导航 ==================== -->
+    <div class="bottom-nav">
+        <button class="nav-item active" data-tab="0"><span class="icon">🏠</span>道场</button>
+        <button class="nav-item" data-tab="1"><span class="icon">📜</span>目标录</button>
+        <button class="nav-item" data-tab="2"><span class="icon">🧘</span>我</button>
+    </div>
+
+    <div class="toast" id="toast"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
