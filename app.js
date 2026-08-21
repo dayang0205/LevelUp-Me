@@ -1,4 +1,64 @@
 // ================================================================
+// 0. 国际化 (i18n)
+// ================================================================
+const translations = {
+    zh: {
+        home: "道场", goals: "目标录", profile: "我的法相",
+        newGoal: "立下新目标", generatePlan: "AI 生成每日计划",
+        confirmStart: "确认，开始修炼", submitFeedback: "提交并获取 AI 反馈",
+        delete: "删除", cancel: "取消", progress: "修炼进度",
+        currentTraining: "当前修炼", active: "修炼中", completed: "已达成",
+        welcome: "欢迎来到灵犀", intro: "开启你的修炼之旅，先创建你的角色吧",
+        startTraining: "开始修炼 ⚔️", bio: "个人简述", expect: "对 AI 伴侣的期望",
+        aiEnhance: "AI 润色", archive: "存档管理",
+        exportData: "导出存档", importData: "导入存档", resetAll: "重置所有",
+        inputName: "输入你的道号（如：无名道友）", bioPlaceholder: "简单介绍你自己...", expectPlaceholder: "你希望 AI 教练以什么风格陪伴你？", newGoalPlaceholder: "例如：每天跑步3公里，提升体能", daysPlaceholder: "修炼天数（如30）",
+        recordDaily: "记录今日修炼", success: "顺利完成", difficulty: "遇到困难", gain: "收获很大", improve: "明日改进",
+        aiPlan: "AI 推演每日功法", about: "关于此器", xp: "修为", checkinCount: "已打卡"
+    },
+    en: {
+        home: "Dojo", goals: "Quest Log", profile: "Avatar",
+        newGoal: "New Goal", generatePlan: "AI Generate Plan",
+        confirmStart: "Confirm & Start", submitFeedback: "Submit & Get AI Feedback",
+        delete: "Delete", cancel: "Cancel", progress: "Progress",
+        currentTraining: "Active Training", active: "Active", completed: "Completed",
+        welcome: "Welcome to Lingxi", intro: "Start your journey by creating your avatar",
+        startTraining: "Start Training ⚔️", bio: "Bio", expect: "Expectations",
+        aiEnhance: "AI Enhance", archive: "Archive",
+        exportData: "Export", importData: "Import", resetAll: "Reset All",
+        inputName: "Enter your Dao name...", bioPlaceholder: "Briefly introduce yourself...", expectPlaceholder: "How should your AI coach style be?", newGoalPlaceholder: "e.g. Run 3km daily to boost energy", daysPlaceholder: "Number of days (e.g. 30)",
+        recordDaily: "Record Daily Practice", success: "Completed", difficulty: "Struggled", gain: "Great Gain", improve: "Improve Tomorrow",
+        aiPlan: "AI Generated Daily Plan", about: "About This App", xp: "XP", checkinCount: "Check-ins"
+    }
+};
+
+let currentLang = localStorage.getItem('lang') || 'zh';
+
+function t(key) {
+    return translations[currentLang][key] || translations.zh[key] || key;
+}
+
+function toggleLanguage() {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    localStorage.setItem('lang', currentLang);
+    applyLanguage();
+    updateAllUI();
+    if (document.getElementById('onboarding').style.display === 'flex') initOnboarding();
+}
+
+function applyLanguage() {
+    document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en';
+    document.getElementById('langLabel').innerText = currentLang === 'zh' ? 'EN' : '中';
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.innerText = t(el.dataset.i18n);
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t(el.dataset.i18nPlaceholder);
+    });
+}
+
+// ================================================================
 // 1. 数据持久化核心（初始数据为空，经验为0）
 // ================================================================
 const STORAGE_KEY = 'xiushen_data';
@@ -65,7 +125,7 @@ function getActive() { return goals.filter(g => g.status === 'active'); }
 function getCompleted() { return goals.filter(g => g.status === 'completed'); }
 
 // ================================================================
-// 3. UI 渲染
+// 3. UI 渲染（支持翻译）
 // ================================================================
 function updateAllUI() {
     const xp = getTotalXp();
@@ -73,7 +133,7 @@ function updateAllUI() {
     const next = getNextRealm(xp);
     const prog = getProgress(xp);
 
-    document.getElementById('homeName').textContent = userProfile.name || '无名道友';
+    document.getElementById('homeName').textContent = userProfile.name || t('home');
     document.getElementById('homeAvatar').textContent = userProfile.avatar || '🧘';
     document.getElementById('homeRealmTag').textContent = realm.name;
     document.getElementById('realmEmoji').textContent = realm.emoji;
@@ -94,14 +154,14 @@ function updateAllUI() {
     document.getElementById('activeCount').textContent = active.length + ' 个';
     const container = document.getElementById('activeGoalsContainer');
     if (!active.length) {
-        container.innerHTML = `<div class="text-secondary text-center" style="padding:24px 0;">暂无修炼目标，立下一个吧</div>`;
+        container.innerHTML = `<div class="text-secondary text-center" style="padding:24px 0;">${t('noGoals')}</div>`;
     } else {
         container.innerHTML = active.map(g => {
             const done = g.tasks.filter(t => t.status === 'done').length;
             const total = g.tasks.length;
             const pct = total > 0 ? Math.round((done/total)*100) : 0;
             return `<div class="active-goal-card" onclick="openDetail('${g.id}')">
-                <div class="info"><div class="title">${g.title}</div><div class="sub">打卡 ${done}/${total} 天 · ⭐ ${g.totalXp}</div></div>
+                <div class="info"><div class="title">${g.title}</div><div class="sub">${t('checkinCount')} ${done}/${total} 天 · ⭐ ${g.totalXp}</div></div>
                 <div class="progress-circle" style="background: conic-gradient(var(--primary) 0% ${pct}%, var(--input-bg) ${pct}% 100%);"><div class="inner">${pct}%</div></div>
             </div>`;
         }).join('');
@@ -113,11 +173,11 @@ function renderGoalList() {
     const view = document.querySelector('#goalViewTabs .active')?.dataset.view || 'active';
     const container = document.getElementById('goalListContainer');
     let list = view === 'active' ? getActive() : getCompleted();
-    if (!list.length) { container.innerHTML = `<div class="text-secondary text-center" style="padding:40px 0;">暂无记录</div>`; return; }
+    if (!list.length) { container.innerHTML = `<div class="text-secondary text-center" style="padding:40px 0;">${t('noGoals')}</div>`; return; }
     if (view === 'active') {
         container.innerHTML = list.map(g => `<div class="goal-list-item" onclick="openDetail('${g.id}')">
             <div class="flex-between"><h4>${g.title}</h4><span class="badge-soft">${Math.round((g.tasks.filter(t=>t.status==='done').length/g.tasks.length)*100)}%</span></div>
-            <div class="text-secondary" style="font-size:13px;">打卡 ${g.tasks.filter(t=>t.status==='done').length}/${g.tasks.length} 天 · ⭐ ${g.totalXp}</div>
+            <div class="text-secondary" style="font-size:13px;">${t('checkinCount')} ${g.tasks.filter(t=>t.status==='done').length}/${g.tasks.length} 天 · ⭐ ${g.totalXp}</div>
         </div>`).join('');
     } else {
         container.innerHTML = list.map(g => `<div class="capsule-item" onclick="openDetail('${g.id}')">
@@ -235,14 +295,14 @@ async function generateAIPlan() {
         if (data.tasks && data.tasks.length > 0) {
             let editableTasks = data.tasks.map((t, i) => `
                 <div style="margin-bottom:8px; display:flex; gap:8px; align-items:center;">
-                    <span style="font-size:13px; font-weight:bold; min-width:45px; color:var(--text-secondary);">第${t.day}天</span>
+                    <span style="font-size:13px; font-weight:bold; min-width:45px; color:var(--text-secondary);">${t.day}</span>
                     <input type="text" id="task-${i}" value="${t.task}" style="flex:1; font-size:14px;">
                 </div>
             `).join('');
 
             document.getElementById('aiPlanContent').innerHTML = `
                 <div class="text-secondary" style="margin-bottom:6px;">📌 ${text}</div>
-                <div style="font-weight:500; margin:6px 0;">📅 每日修炼（你可以直接修改下面的任务）：</div>
+                <div style="font-weight:500; margin:6px 0;">📅 ${t('aiPlan')}</div>
                 ${editableTasks}
             `;
 
@@ -537,5 +597,6 @@ if (!hasOnboarded) {
     document.getElementById('onboarding').style.display = 'none';
 }
 
+applyLanguage();
 updateAllUI();
 console.log('🧘 灵犀版已启动，AI和语音功能已接入！');
