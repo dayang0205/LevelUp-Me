@@ -54,25 +54,28 @@ app.post('/api/generate-plan', async (req, res) => {
         });
 
         const data = await response.json();
-        // 【新增】检查 API 是否返回错误
-        if (!response.ok) {
-            console.error('DeepSeek API Error:', JSON.stringify(data));
-            throw new Error(data.error?.message || `API 请求失败，状态码 ${response.status}`);
+
+        // 1. 检查 API 是否真的返回了数据
+        if (!response.ok || !data.choices) {
+            console.error('DeepSeek API 返回错误:', JSON.stringify(data));
+            throw new Error(data.error?.message || 'AI API 请求失败');
         }
-        // 【新增】检查返回的数据结构是否正确
-        if (!data.choices || !data.choices[0]) {
-            console.error('DeepSeek API 返回格式错误:', JSON.stringify(data));
-            throw new Error('API 返回数据格式错误');
-        }
+
+        // 2. 安全地提取内容
         const content = data.choices[0].message.content;
-        
+
+        // 3. 【关键修复】必须用 const 声明变量！
+        const tasks = JSON.parse(content); 
+
+        // 4. 返回给前端
         if (Array.isArray(tasks)) {
             res.json({ tasks });
         } else if (tasks.tasks && Array.isArray(tasks.tasks)) {
             res.json({ tasks: tasks.tasks });
         } else {
-            throw new Error('返回格式错误');
+            throw new Error('返回格式错误，AI 生成的 JSON 无效');
         }
+
     } catch (error) {
         console.error('生成计划失败:', error);
         res.status(500).json({ error: 'AI 服务暂时不可用，请稍后重试' });
