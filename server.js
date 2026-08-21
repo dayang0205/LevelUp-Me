@@ -54,8 +54,17 @@ app.post('/api/generate-plan', async (req, res) => {
         });
 
         const data = await response.json();
+        // 【新增】检查 API 是否返回错误
+        if (!response.ok) {
+            console.error('DeepSeek API Error:', JSON.stringify(data));
+            throw new Error(data.error?.message || `API 请求失败，状态码 ${response.status}`);
+        }
+        // 【新增】检查返回的数据结构是否正确
+        if (!data.choices || !data.choices[0]) {
+            console.error('DeepSeek API 返回格式错误:', JSON.stringify(data));
+            throw new Error('API 返回数据格式错误');
+        }
         const content = data.choices[0].message.content;
-        const tasks = JSON.parse(content);
         
         if (Array.isArray(tasks)) {
             res.json({ tasks });
