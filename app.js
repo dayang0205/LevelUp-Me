@@ -1,5 +1,5 @@
 // ================================================================
-// 1. 数据持久化核心
+// 1. 数据持久化核心（初始数据为空，经验为0）
 // ================================================================
 const STORAGE_KEY = 'xiushen_data';
 let goals = [];
@@ -21,52 +21,19 @@ const REALMS = [
     { level: 8, name: '大乘', emoji: '🌟', xpRequired: 5000 },
     { level: 9, name: '宗师', emoji: '🏆', xpRequired: 8000 },
 ];
+
+// 头像选项
 const avatarOptions = ['🧘', '🧝', '🧙', '🦊', '🐉', '🌿', '🌟', '⚡', '🌸', '🍃', '💫', '🌙', '☀️', '🪷'];
 
+// 全新用户数据（没有任何预设目标和经验）
 function getSeedData() {
-    const sampleTasks = [];
-    for (let i = 1; i <= 7; i++) {
-        sampleTasks.push({
-            id: 'st'+i,
-            title: `第${i}天：跑步 ${2 + (i%3)} 公里，记录配速`,
-            status: i <= 3 ? 'done' : 'pending',
-            feedback: i === 1 ? '顺利完成，配速5:30，感觉不错' : 
-                      i === 2 ? '今天有点累，跑了2.5公里，配速6:00' : 
-                      i === 3 ? '状态回升，跑了3公里，配速5:20，很满意' : ''
-        });
-    }
     return {
-        goals: [
-            {
-                id: 'g1',
-                title: '晨跑体能提升',
-                status: 'active',
-                totalXp: 85,
-                tasks: sampleTasks,
-                history: [
-                    { date: '08-15', action: '第1天打卡: 配速5:30', xp: 25 },
-                    { date: '08-16', action: '第2天打卡: 配速6:00', xp: 28 },
-                    { date: '08-17', action: '第3天打卡: 配速5:20', xp: 32 },
-                ]
-            },
-            {
-                id: 'g2',
-                title: 'Python 每日一练',
-                status: 'active',
-                totalXp: 20,
-                tasks: [
-                    { id: 'p1', title: '第1天：Python 基础语法练习', status: 'done', feedback: '顺利完成了所有例题。' },
-                    { id: 'p2', title: '第2天：列表推导式', status: 'pending', feedback: '' },
-                    { id: 'p3', title: '第3天：函数定义与调用', status: 'pending', feedback: '' },
-                ],
-                history: [{ date: '08-18', action: '第1天打卡: 基础语法', xp: 20 }]
-            }
-        ],
+        goals: [],
         userProfile: {
             name: '无名道友',
             avatar: '🧘',
-            bio: '一名对自我成长充满热情的探索者，正在寻找更高效的生活方式。',
-            expect: '希望 AI 能温柔而坚定地陪伴我，在我想放弃时给予鼓励，在骄傲时给予提醒。'
+            bio: '一名对自我成长充满热情的探索者。',
+            expect: '希望 AI 能温柔而坚定地陪伴我。'
         }
     };
 }
@@ -168,7 +135,7 @@ function getActive() { return goals.filter(g => g.status === 'active'); }
 function getCompleted() { return goals.filter(g => g.status === 'completed'); }
 
 // ================================================================
-// 4. UI 渲染
+// 4. UI 渲染（包含所有主界面更新）
 // ================================================================
 function updateAllUI() {
     const xp = getTotalXp();
@@ -237,7 +204,41 @@ function renderGoalList() {
 }
 
 // ================================================================
-// 5. 头像 & 道号
+// 5. 创建用户界面（新手引导）
+// ================================================================
+let selectedAvatar = '🧘';
+
+function initOnboarding() {
+    const container = document.getElementById('avatarPicker');
+    if (!container) return;
+    container.innerHTML = avatarOptions.map(av => 
+        `<span class="${av === '🧘' ? 'selected' : ''}" onclick="selectAvatar('${av}')">${av}</span>`
+    ).join('');
+}
+
+function selectAvatar(av) {
+    selectedAvatar = av;
+    document.querySelectorAll('#avatarPicker span').forEach(s => s.classList.remove('selected'));
+    event.target.classList.add('selected');
+}
+
+function finishOnboarding() {
+    const name = document.getElementById('inputName').value.trim() || '无名道友';
+    userProfile = {
+        name: name,
+        avatar: selectedAvatar,
+        bio: '一名对自我成长充满热情的探索者。',
+        expect: '希望 AI 能温柔而坚定地陪伴我。'
+    };
+    localStorage.setItem('hasOnboarded', 'true');
+    saveData();
+    updateAllUI();
+    document.getElementById('onboarding').style.display = 'none';
+    document.querySelector('.bottom-nav').style.display = 'flex';
+}
+
+// ================================================================
+// 6. 头像 & 道号
 // ================================================================
 function editAvatar() {
     const current = userProfile.avatar || '🧘';
@@ -275,7 +276,7 @@ function updateProfile() {
 }
 
 // ================================================================
-// 6. AI 模拟
+// 7. AI 模拟与反馈
 // ================================================================
 function aiEnhance(type) {
     const btn = event.target;
@@ -332,7 +333,7 @@ function generateAIReply(userFeedback) {
 }
 
 // ================================================================
-// 7. 详情 & 打卡
+// 8. 详情 & 打卡
 // ================================================================
 function openDetail(id) {
     selectedGoalId = id;
@@ -384,7 +385,7 @@ function toggleFeedback(goalId, taskId) {
 }
 
 // ================================================================
-// 8. 打卡反馈
+// 9. 打卡反馈
 // ================================================================
 function openFeedbackModal(goalId, taskId) {
     pendingCheckinGoalId = goalId;
@@ -450,7 +451,7 @@ function submitFeedback() {
 }
 
 // ================================================================
-// 9. 新目标
+// 10. 新目标
 // ================================================================
 function openNewGoalModal() {
     document.getElementById('newGoalModal').classList.add('show');
@@ -545,7 +546,7 @@ function confirmNewGoal() {
 }
 
 // ================================================================
-// 10. 主题切换
+// 11. 主题切换
 // ================================================================
 function switchTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
@@ -578,7 +579,7 @@ const savedTheme = localStorage.getItem('theme') || 'sage';
 switchTheme(savedTheme);
 
 // ================================================================
-// 11. 导航
+// 12. 导航
 // ================================================================
 const navItems = document.querySelectorAll('.nav-item');
 const pages = [
@@ -606,46 +607,24 @@ document.querySelectorAll('#goalViewTabs button').forEach(btn => {
 });
 
 // ================================================================
-// 12. 启动
+// 13. 启动逻辑（包含首次进入判断）
 // ================================================================
 const saved = loadData();
 goals = saved.goals;
 userProfile = saved.userProfile;
-updateAllUI();
-console.log('🧘 灵犀版已启动！数据自动保存在浏览器本地。');
 
-// 定义可用的头像列表（和之前一样）
-const avatarOptions = ['🧘', '🧝', '🧙', '🦊', '🐉', '🌿', '🌟', '⚡', '🌸', '🍃', '💫', '🌙', '☀️', '🪷'];
-let selectedAvatar = '🧘'; // 默认头像
-
-// 渲染头像选择器
-function initOnboarding() {
-    const container = document.getElementById('avatarPicker');
-    container.innerHTML = avatarOptions.map(av => 
-        `<span class="${av === '🧘' ? 'selected' : ''}" onclick="selectAvatar('${av}')">${av}</span>`
-    ).join('');
-}
-
-function selectAvatar(av) {
-    selectedAvatar = av;
-    document.querySelectorAll('#avatarPicker span').forEach(s => s.classList.remove('selected'));
-    event.target.classList.add('selected');
-}
-
-// 完成创建并进入主界面
-function finishOnboarding() {
-    const name = document.getElementById('inputName').value.trim() || '无名道友';
-    // 初始化用户资料
-    userProfile = {
-        name: name,
-        avatar: selectedAvatar,
-        bio: '一名对自我成长充满热情的探索者。',
-        expect: '希望 AI 能温柔而坚定地陪伴我。'
-    };
-    // 标记已完成引导
-    localStorage.setItem('hasOnboarded', 'true');
-    saveData();
-    updateAllUI();
-    // 隐藏引导界面
+// 判断是否显示创建用户界面
+const hasOnboarded = localStorage.getItem('hasOnboarded');
+if (!hasOnboarded) {
+    // 没创建过：显示引导页，隐藏底部导航
+    document.getElementById('onboarding').style.display = 'flex';
+    document.querySelector('.bottom-nav').style.display = 'none';
+    initOnboarding();
+} else {
+    // 已创建：隐藏引导页，显示主界面
     document.getElementById('onboarding').style.display = 'none';
 }
+
+// 更新UI
+updateAllUI();
+console.log('🧘 灵犀版已启动！数据自动保存在浏览器本地。');
