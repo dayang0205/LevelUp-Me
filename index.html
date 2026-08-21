@@ -7,21 +7,22 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<!-- 首次进入的用户创建界面 -->
-<div class="onboarding" id="onboarding">
-    <div class="onboarding-box">
-        <div style="font-size:40px;">🧘</div>
-        <h2>欢迎来到灵犀</h2>
-        <p>开启你的修炼之旅，先创建你的角色吧</p>
-        <input id="inputName" maxlength="12" placeholder="输入你的道号（如：无名道友）">
-        <div class="avatar-picker" id="avatarPicker"></div>
-        <button class="btn-primary" onclick="finishOnboarding()">开始修炼 ⚔️</button>
-    </div>
-</div>
 <div class="phone" id="app">
     <div class="status-bar"><span>今日 · 灵犀</span><span>⚡ 心流</span></div>
     
     <div class="main-content">
+        <!-- ==================== 首次引导 ==================== -->
+        <div class="onboarding" id="onboarding">
+            <div class="onboarding-box">
+                <div style="font-size:40px;">🧘</div>
+                <h2>欢迎来到灵犀</h2>
+                <p>开启你的修炼之旅，先创建你的角色吧</p>
+                <input id="inputName" maxlength="12" placeholder="输入你的道号（如：无名道友）">
+                <div class="avatar-picker" id="avatarPicker"></div>
+                <button class="btn-primary" onclick="finishOnboarding()">开始修炼 ⚔️</button>
+            </div>
+        </div>
+
         <!-- ==================== 道场 ==================== -->
         <div class="page active" id="page-home">
             <div class="page-header">
@@ -156,6 +157,7 @@
             <div class="detail-header">
                 <button class="back-btn" onclick="closeDetail()">←</button>
                 <h2 style="font-size:20px; flex:1;" id="detailTitle">目标</h2>
+                <button class="btn-outline" onclick="deleteGoal(selectedGoalId)" style="color:#c0392b; border-color:#f5c6cb; font-size:12px;">删除</button>
                 <span class="badge-soft" id="detailStatus">修炼中</span>
             </div>
             <div class="card" style="margin-bottom:16px;">
