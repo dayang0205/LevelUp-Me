@@ -613,3 +613,39 @@ goals = saved.goals;
 userProfile = saved.userProfile;
 updateAllUI();
 console.log('🧘 灵犀版已启动！数据自动保存在浏览器本地。');
+
+// 定义可用的头像列表（和之前一样）
+const avatarOptions = ['🧘', '🧝', '🧙', '🦊', '🐉', '🌿', '🌟', '⚡', '🌸', '🍃', '💫', '🌙', '☀️', '🪷'];
+let selectedAvatar = '🧘'; // 默认头像
+
+// 渲染头像选择器
+function initOnboarding() {
+    const container = document.getElementById('avatarPicker');
+    container.innerHTML = avatarOptions.map(av => 
+        `<span class="${av === '🧘' ? 'selected' : ''}" onclick="selectAvatar('${av}')">${av}</span>`
+    ).join('');
+}
+
+function selectAvatar(av) {
+    selectedAvatar = av;
+    document.querySelectorAll('#avatarPicker span').forEach(s => s.classList.remove('selected'));
+    event.target.classList.add('selected');
+}
+
+// 完成创建并进入主界面
+function finishOnboarding() {
+    const name = document.getElementById('inputName').value.trim() || '无名道友';
+    // 初始化用户资料
+    userProfile = {
+        name: name,
+        avatar: selectedAvatar,
+        bio: '一名对自我成长充满热情的探索者。',
+        expect: '希望 AI 能温柔而坚定地陪伴我。'
+    };
+    // 标记已完成引导
+    localStorage.setItem('hasOnboarded', 'true');
+    saveData();
+    updateAllUI();
+    // 隐藏引导界面
+    document.getElementById('onboarding').style.display = 'none';
+}
