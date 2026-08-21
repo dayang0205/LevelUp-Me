@@ -58,9 +58,6 @@
     --badge-bg: #35393B;
 }
 
-/* ============================================================
-   2. 全局重置
-   ============================================================ */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
     font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -116,9 +113,6 @@ body {
 .page.active { opacity: 1; pointer-events: auto; }
 .page::-webkit-scrollbar { width: 0; }
 
-/* ============================================================
-   3. 顶部标题栏
-   ============================================================ */
 .page-header {
     display: flex;
     justify-content: space-between;
@@ -193,9 +187,6 @@ body {
 }
 .theme-dropdown .theme-option .check { margin-left: auto; color: var(--primary); font-weight: 700; }
 
-/* ============================================================
-   4. 底部导航
-   ============================================================ */
 .bottom-nav {
     flex-shrink: 0;
     background: var(--card-bg);
@@ -224,9 +215,6 @@ body {
 .nav-item .icon { font-size: 22px; }
 .nav-item.active { color: var(--primary); opacity: 1; }
 
-/* ============================================================
-   5. 通用组件
-   ============================================================ */
 .badge-soft {
     background: var(--badge-bg);
     color: var(--text-secondary);
@@ -318,9 +306,6 @@ input:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset:
 .mt-8 { margin-top: 8px; }
 .mb-8 { margin-bottom: 8px; }
 
-/* ============================================================
-   6. 道场首页
-   ============================================================ */
 .home-top {
     display: flex;
     align-items: center;
@@ -437,9 +422,6 @@ input:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset:
 }
 .new-goal-btn:active { transform: scale(0.97); opacity: 0.8; }
 
-/* ============================================================
-   7. 目标录
-   ============================================================ */
 .view-tabs {
     display: flex;
     gap: 6px;
@@ -478,9 +460,6 @@ input:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset:
 .goal-list-item:active, .capsule-item:active { transform: scale(0.98); }
 .capsule-item { border-left: 4px solid var(--primary); }
 
-/* ============================================================
-   8. 我的法相（含导出/导入）
-   ============================================================ */
 .profile-section {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
@@ -566,7 +545,6 @@ input:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset:
 }
 .ai-enhance-row .btn-ai:active { background: var(--primary); color: #fff; }
 
-/* 数据管理区块 */
 .data-mgmt {
     display: flex;
     gap: 10px;
@@ -636,9 +614,6 @@ input:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset:
 }
 .product-intro h4 { color: var(--text); margin-bottom: 4px; }
 
-/* ============================================================
-   9. 详情覆盖层 & 打卡模态框
-   ============================================================ */
 .detail-overlay {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     background: var(--bg);
@@ -786,23 +761,15 @@ input:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset:
 }
 
 /* ============================================================
-   10. 响应式
+   10. 首次引导样式
    ============================================================ */
-@media (max-width: 420px) {
-    .phone { width: 100%; height: 100vh; border-radius: 0; }
-    .modal-overlay { border-radius: 0; }
-    .detail-overlay { border-radius: 0; }
-    .feedback-modal-overlay { border-radius: 0; }
-}
-
-/* 首次进入引导 */
 .onboarding {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
     background: var(--bg);
     z-index: 999;
-    display: flex;
+    display: none; /* 初始隐藏，由JS控制 */
     align-items: center;
     justify-content: center;
     padding: 30px;
@@ -842,4 +809,12 @@ input:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset:
     border-color: var(--primary);
     background: var(--primary-soft);
     transform: scale(1.1);
+}
+
+@media (max-width: 420px) {
+    .phone { width: 100%; height: 100vh; border-radius: 0; }
+    .modal-overlay { border-radius: 0; }
+    .detail-overlay { border-radius: 0; }
+    .feedback-modal-overlay { border-radius: 0; }
+    .onboarding { border-radius: 0; }
 }
