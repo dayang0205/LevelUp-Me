@@ -11,14 +11,14 @@ app.use(express.static('public'));
 const API_KEY = process.env.DEEPSEEK_API_KEY;
 if (!API_KEY) { console.error('❌ 错误：请设置环境变量 DEEPSEEK_API_KEY'); process.exit(1); }
 
-// 【新增】清洗函数，兼容 AI 返回 Markdown 代码块格式的 JSON
+// 【关键】清洗函数，兼容 AI 返回 Markdown 代码块格式的 JSON，并提取大括号内容
 function cleanJSON(text) {
     text = text.trim();
-    // 如果以 ```json 或 ``` 开头，去掉前面的反引号和 json
-    if (text.startsWith('```')) {
-        text = text.replace(/^```(?:json)?\s*/, '');
-        // 去掉结尾的反引号
-        text = text.replace(/\s*```$/, '');
+    text = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start !== -1 && end !== -1) {
+        text = text.substring(start, end + 1);
     }
     return text;
 }
@@ -51,8 +51,8 @@ app.post('/api/generate-plan', async (req, res) => {
                 messages,
                 max_tokens: 1500,
                 temperature: 1.0,
-                top_p: 1.0,
-                thinking_mode: "thinking"
+                top_p: 1.0
+                // ✅ 已删除 thinking_mode，响应速度大幅提升！
             })
         });
 
@@ -61,18 +61,14 @@ app.post('/api/generate-plan', async (req, res) => {
         
         let content = data.choices[0].message.content;
 
-        // 如果是生成模式，尝试解析 JSON
         if (action === 'generate') {
             try {
-                // 【关键修复】先清洗内容，再解析
                 const parsed = JSON.parse(cleanJSON(content));
                 res.json(parsed);
             } catch (e) {
-                // 如果AI返回的不是纯JSON，加个兜底
                 res.status(500).json({ error: 'AI 返回格式错误，请重试' });
             }
         } else {
-            // chat模式直接返回文本
             res.json({ reply: content });
         }
     } catch (error) {
@@ -98,7 +94,6 @@ app.post('/api/process-feedback', async (req, res) => {
             })
         });
         const data = await response.json();
-        // 【关键修复】同样清洗一下再解析
         res.json(JSON.parse(cleanJSON(data.choices[0].message.content)));
     } catch (error) {
         res.status(500).json({ error: 'AI 服务暂时不可用' });
