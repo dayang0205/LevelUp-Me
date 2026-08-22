@@ -212,7 +212,7 @@ function finishOnboarding() {
 }
 
 // ================================================================
-// 5. 语音识别功能
+// 5. 语音识别功能（实时显示）
 // ================================================================
 let recognition = null;
 let isListening = false;
@@ -229,23 +229,45 @@ function setupVoice() {
     }
     recognition = new SpeechRecognition();
     recognition.lang = 'zh-CN';
-    recognition.interimResults = false;
+    recognition.interimResults = true; // 【关键修改】允许返回中间结果，实现实时显示
+    recognition.continuous = false; // 说完一句话就自动停止
     recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
-        const transcript = event.results[0][0].transcript;
-        if (document.getElementById('feedbackModal').classList.contains('show')) {
-            document.getElementById('feedbackInput').value = transcript;
-        } else if (document.getElementById('newGoalModal').classList.contains('show')) {
-            document.getElementById('newGoalInput').value = transcript;
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        // 遍历所有识别结果，区分“最终结果”和“中间结果”
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                finalTranscript += transcript;
+            } else {
+                interimTranscript += transcript;
+            }
         }
-        stopListening();
+
+        // 找到当前激活的输入框
+        const activeInput = 
+            document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
+            document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
+            null;
+
+        if (activeInput) {
+            // 如果输入框里原本有内容，保留原有内容，追加新的识别结果
+            const baseContent = activeInput.value.replace(interimTranscript, '').replace(finalTranscript, '');
+            activeInput.value = baseContent + interimTranscript + finalTranscript;
+        }
     };
+
     recognition.onerror = function(event) {
         showToast('❌ 语音识别失败: ' + event.error);
         stopListening();
     };
-    recognition.onend = function() { stopListening(); };
+
+    recognition.onend = function() {
+        stopListening();
+    };
 }
 
 function startListening() {
@@ -260,15 +282,9 @@ function startListening() {
 function stopListening() {
     if (recognition) recognition.stop();
     isListening = false;
-    showToast('语音输入结束');
+    // 给用户一个反馈，表示语音输入结束
+    showToast('✅ 语音输入结束');
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    const feedbackBtn = document.getElementById('feedbackVoiceBtn');
-    const goalBtn = document.getElementById('newGoalVoiceBtn');
-    if (feedbackBtn) feedbackBtn.addEventListener('click', startListening);
-    if (goalBtn) goalBtn.addEventListener('click', startListening);
-});
 
 // ================================================================
 // 6. AI 真实接入
