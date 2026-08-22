@@ -240,11 +240,10 @@ function finishOnboarding() {
 }
 
 // ================================================================
-// 5. 语音识别功能（长按说话，松开停止，滑动取消）
+// 5. 语音识别功能（终极防叠字版 - 覆盖式）
 // ================================================================
 let recognition = null;
 let isListening = false;
-let voiceBtn = null;
 
 function setupVoice() {
     if (!window.isSecureContext) {
@@ -259,12 +258,12 @@ function setupVoice() {
     recognition = new SpeechRecognition();
     recognition.lang = 'zh-CN';
     recognition.interimResults = true;
-    recognition.continuous = true; // 持续录音直到手动停止
+    recognition.continuous = true;
     recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
-        let interimTranscript = '';
         let finalTranscript = '';
+        let interimTranscript = '';
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
@@ -275,12 +274,15 @@ function setupVoice() {
             }
         }
 
+        // 找出当前激活的输入框
         const activeInput = 
             document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
             document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
             null;
+
         if (activeInput) {
-            activeInput.value += finalTranscript + interimTranscript;
+            // 【核心修复】整段覆盖，绝不追加！这样绝不会叠字
+            activeInput.value = finalTranscript + interimTranscript;
         }
     };
 
@@ -295,20 +297,16 @@ function setupVoice() {
     };
 }
 
-// 长按开始录音
 function startListening(e) {
     if (!recognition) setupVoice();
     if (!recognition) return;
     if (isListening) return;
 
-    // 支持鼠标和触屏
-    if (e) {
-        e.preventDefault();
-    }
-
+    if (e) e.preventDefault();
     isListening = true;
 
-    // 找出当前激活的语音按钮
+    // 找出当前激活的语音按钮，修改样式
+    let voiceBtn = null;
     const feedbackModal = document.getElementById('feedbackModal');
     const newGoalModal = document.getElementById('newGoalModal');
     if (feedbackModal && feedbackModal.classList.contains('show')) {
@@ -316,15 +314,13 @@ function startListening(e) {
     } else if (newGoalModal && newGoalModal.classList.contains('show')) {
         voiceBtn = document.getElementById('newGoalVoiceBtn');
     }
-
-    // 按钮进入录音状态
     if (voiceBtn) {
-        voiceBtn.innerHTML = '🎙️ 松开结束';
+        voiceBtn.innerHTML = '⏹ 松开结束';
         voiceBtn.style.background = '#e74c3c';
         voiceBtn.style.color = '#fff';
     }
 
-    // 清空输入框（防止叠字）
+    // 【关键】开始前清空输入框，消除一切旧文字
     const activeInput = 
         feedbackModal && feedbackModal.classList.contains('show') ? document.getElementById('feedbackInput') :
         newGoalModal && newGoalModal.classList.contains('show') ? document.getElementById('newGoalInput') :
@@ -337,24 +333,31 @@ function startListening(e) {
     showToast('🎙️ 正在录音... 松开结束');
 }
 
-// 松开停止录音
 function stopListening() {
-    if (recognition) {
-        recognition.stop();
-    }
+    if (recognition) recognition.stop();
     isListening = false;
 
-    // 恢复按钮状态
-    if (voiceBtn) {
-        voiceBtn.innerHTML = '🎙️ 按住说话';
-        voiceBtn.style.background = '';
-        voiceBtn.style.color = '';
-        voiceBtn = null;
+    // 恢复按钮样式
+    const feedbackModal = document.getElementById('feedbackModal');
+    const newGoalModal = document.getElementById('newGoalModal');
+    if (feedbackModal && feedbackModal.classList.contains('show')) {
+        const btn = document.getElementById('feedbackVoiceBtn');
+        if (btn) {
+            btn.innerHTML = '🎙️ 按住说话';
+            btn.style.background = '';
+            btn.style.color = '';
+        }
+    } else if (newGoalModal && newGoalModal.classList.contains('show')) {
+        const btn = document.getElementById('newGoalVoiceBtn');
+        if (btn) {
+            btn.innerHTML = '🎙️ 按住说话';
+            btn.style.background = '';
+            btn.style.color = '';
+        }
     }
     showToast('✅ 录音结束');
 }
 
-// 滑动取消（手指滑出按钮区域则取消录音）
 function cancelListening(e) {
     if (!isListening) return;
     if (e && voiceBtn) {
@@ -367,6 +370,7 @@ function cancelListening(e) {
         }
     }
 }
+
 // ================================================================
 // 6. AI 多轮对话与结构化目标生成
 // ================================================================
