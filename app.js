@@ -86,12 +86,33 @@ function getSeedData() {
     return { goals: [], userProfile: { name: '无名道友', avatar: '🧘', bio: '一名对自我成长充满热情的探索者。', expect: '希望 AI 能温柔而坚定地陪伴我。' } };
 }
 
+// 【新增】自动兼容旧数据，防止因格式不同导致 JS 崩溃
+function normalizeData(data) {
+    if (data.goals) {
+        data.goals = data.goals.map(g => {
+            // 如果旧数据是 tasks 数组，自动转换成 todayTasks
+            if (!g.todayTasks && g.tasks) {
+                g.todayTasks = g.tasks.map(t => ({ 
+                    text: t.title || t.task || t, 
+                    done: t.status === 'done' 
+                }));
+            }
+            // 如果没有任务，设为空数组
+            if (!g.todayTasks) g.todayTasks = [];
+            delete g.tasks; // 删除旧字段，避免干扰
+            return g;
+        });
+    }
+    return data;
+}
+
 function loadData() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
         try {
-            const data = JSON.parse(raw);
-            if (data.goals && data.userProfile) return data;
+            let data = JSON.parse(raw);
+            // 【关键】调用 normalizeData，确保数据兼容
+            if (data.goals && data.userProfile) return normalizeData(data);
         } catch (e) {}
     }
     const seed = getSeedData();
