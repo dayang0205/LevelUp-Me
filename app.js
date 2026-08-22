@@ -240,11 +240,10 @@ function finishOnboarding() {
 }
 
 // ================================================================
-// 5. 语音识别功能（修复叠字问题）
+// 5. 语音识别功能（终极防叠字版）
 // ================================================================
 let recognition = null;
 let isListening = false;
-let voiceBaseText = ''; // 【关键修复】保存语音开始前输入框里已有的内容
 
 function setupVoice() {
     if (!window.isSecureContext) {
@@ -258,27 +257,32 @@ function setupVoice() {
     }
     recognition = new SpeechRecognition();
     recognition.lang = 'zh-CN';
-    recognition.interimResults = true; 
+    recognition.interimResults = true;
     recognition.continuous = false;
     recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
         let interimTranscript = '';
         let finalTranscript = '';
+        
+        // 只取本次结果，不包含历史
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) finalTranscript += transcript;
-            else interimTranscript += transcript;
+            if (event.results[i].isFinal) {
+                finalTranscript += transcript;
+            } else {
+                interimTranscript += transcript;
+            }
         }
-        
+
         const activeInput = 
             document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
             document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
             null;
 
         if (activeInput) {
-            // 【核心修复】直接覆盖赋值：原内容 + 最终结果 + 临时结果，绝不使用 replace！
-            activeInput.value = voiceBaseText + finalTranscript + interimTranscript;
+            // 【终极修复】直接覆盖赋值，不考虑之前的任何内容！
+            activeInput.value = finalTranscript + interimTranscript;
         }
     };
     recognition.onerror = function(event) { showToast('❌ 语音识别失败: ' + event.error); stopListening(); };
@@ -291,14 +295,16 @@ function startListening() {
     if (isListening) { stopListening(); return; }
     isListening = true;
 
-    // 【关键修复】开始说话前，把当前输入框里的内容暂存起来
+    // 【关键】开始前，先把输入框清空，这样绝不会叠字
     const activeInput = 
         document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
         document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
         null;
     
-    voiceBaseText = activeInput ? activeInput.value : '';
-    
+    if (activeInput) {
+        activeInput.value = ''; 
+    }
+
     recognition.start();
     showToast('🎙️ 请开始说话...');
 }
