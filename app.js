@@ -273,8 +273,12 @@ function setupVoice() {
     recognition.onresult = function(event) {
         let interimTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript;
+            let transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
+                // 自动断句：如果这句话末尾没有标点，就自动加上句号
+                if (transcript && !/[。！？!?]$/.test(transcript)) {
+                    transcript += '。';
+                }
                 accumulatedText += transcript;
             } else {
                 interimTranscript += transcript;
