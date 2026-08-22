@@ -240,7 +240,7 @@ function finishOnboarding() {
 }
 
 // ================================================================
-// 5. 语音识别功能（终极防叠字版）
+// 5. 语音识别功能（含录音状态反馈）
 // ================================================================
 let recognition = null;
 let isListening = false;
@@ -262,10 +262,8 @@ function setupVoice() {
     recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
-        let interimTranscript = '';
         let finalTranscript = '';
-        
-        // 只取本次结果，不包含历史
+        let interimTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
@@ -279,39 +277,80 @@ function setupVoice() {
             document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
             document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
             null;
-
         if (activeInput) {
-            // 【终极修复】直接覆盖赋值，不考虑之前的任何内容！
             activeInput.value = finalTranscript + interimTranscript;
         }
     };
-    recognition.onerror = function(event) { showToast('❌ 语音识别失败: ' + event.error); stopListening(); };
-    recognition.onend = function() { stopListening(); };
+
+    recognition.onerror = function(event) {
+        showToast('❌ 语音识别失败: ' + event.error);
+        stopListening();
+    };
+    recognition.onend = function() {
+        stopListening();
+    };
 }
 
 function startListening() {
     if (!recognition) setupVoice();
     if (!recognition) return;
-    if (isListening) { stopListening(); return; }
+    if (isListening) {
+        stopListening();
+        return;
+    }
     isListening = true;
 
-    // 【关键】开始前，先把输入框清空，这样绝不会叠字
+    // 找出当前激活的语音按钮，并改变样式
+    let voiceBtn = null;
+    const feedbackModal = document.getElementById('feedbackModal');
+    const newGoalModal = document.getElementById('newGoalModal');
+    if (feedbackModal && feedbackModal.classList.contains('show')) {
+        voiceBtn = document.getElementById('feedbackVoiceBtn');
+    } else if (newGoalModal && newGoalModal.classList.contains('show')) {
+        voiceBtn = document.getElementById('newGoalVoiceBtn');
+    }
+    if (voiceBtn) {
+        voiceBtn.innerHTML = '⏹ 停止';
+        voiceBtn.style.background = '#e74c3c'; // 红色
+        voiceBtn.style.color = '#fff';
+    }
+
+    // 清空对应输入框，避免叠字
     const activeInput = 
-        document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
-        document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
+        feedbackModal && feedbackModal.classList.contains('show') ? document.getElementById('feedbackInput') :
+        newGoalModal && newGoalModal.classList.contains('show') ? document.getElementById('newGoalInput') :
         null;
-    
     if (activeInput) {
-        activeInput.value = ''; 
+        activeInput.value = '';
     }
 
     recognition.start();
-    showToast('🎙️ 请开始说话...');
+    showToast('🎙️ 正在录音，点击按钮可停止...');
 }
 
 function stopListening() {
     if (recognition) recognition.stop();
     isListening = false;
+
+    // 恢复按钮样式
+    const feedbackModal = document.getElementById('feedbackModal');
+    const newGoalModal = document.getElementById('newGoalModal');
+    if (feedbackModal && feedbackModal.classList.contains('show')) {
+        const btn = document.getElementById('feedbackVoiceBtn');
+        if (btn) {
+            btn.innerHTML = '🎙️ 语音';
+            btn.style.background = '';
+            btn.style.color = '';
+        }
+    } else if (newGoalModal && newGoalModal.classList.contains('show')) {
+        const btn = document.getElementById('newGoalVoiceBtn');
+        if (btn) {
+            btn.innerHTML = '🎙️ 语音输入';
+            btn.style.background = '';
+            btn.style.color = '';
+        }
+    }
+    showToast('✅ 录音结束');
 }
 
 // ================================================================
