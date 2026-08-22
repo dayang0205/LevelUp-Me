@@ -11,6 +11,18 @@ app.use(express.static('public'));
 const API_KEY = process.env.DEEPSEEK_API_KEY;
 if (!API_KEY) { console.error('❌ 错误：请设置环境变量 DEEPSEEK_API_KEY'); process.exit(1); }
 
+// 【新增】清洗函数，兼容 AI 返回 Markdown 代码块格式的 JSON
+function cleanJSON(text) {
+    text = text.trim();
+    // 如果以 ```json 或 ``` 开头，去掉前面的反引号和 json
+    if (text.startsWith('```')) {
+        text = text.replace(/^```(?:json)?\s*/, '');
+        // 去掉结尾的反引号
+        text = text.replace(/\s*```$/, '');
+    }
+    return text;
+}
+
 // 接口1：多轮对话式生成目标计划
 app.post('/api/generate-plan', async (req, res) => {
     const { action, history = [], bio, expect } = req.body;
@@ -35,24 +47,25 @@ app.post('/api/generate-plan', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
             body: JSON.stringify({
-                model: 'deepseek-v4-flash', // [关键修改] 使用新版模型
+                model: 'deepseek-v4-flash', 
                 messages,
                 max_tokens: 1500,
                 temperature: 1.0,
                 top_p: 1.0,
-                thinking_mode: "thinking" // [关键修改] 启用思考模式，提高生成质量
+                thinking_mode: "thinking"
             })
         });
 
         const data = await response.json();
         if (!response.ok || !data.choices) throw new Error(data.error?.message || 'API错误');
         
-        const content = data.choices[0].message.content;
+        let content = data.choices[0].message.content;
 
         // 如果是生成模式，尝试解析 JSON
         if (action === 'generate') {
             try {
-                const parsed = JSON.parse(content);
+                // 【关键修复】先清洗内容，再解析
+                const parsed = JSON.parse(cleanJSON(content));
                 res.json(parsed);
             } catch (e) {
                 // 如果AI返回的不是纯JSON，加个兜底
@@ -78,14 +91,15 @@ app.post('/api/process-feedback', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
             body: JSON.stringify({
-                model: 'deepseek-v4-flash', // [关键修改] 使用新版模型
+                model: 'deepseek-v4-flash', 
                 messages: [{ role: 'system', content: systemPrompt }],
                 max_tokens: 300,
                 temperature: 0.7
             })
         });
         const data = await response.json();
-        res.json(JSON.parse(data.choices[0].message.content));
+        // 【关键修复】同样清洗一下再解析
+        res.json(JSON.parse(cleanJSON(data.choices[0].message.content)));
     } catch (error) {
         res.status(500).json({ error: 'AI 服务暂时不可用' });
     }
