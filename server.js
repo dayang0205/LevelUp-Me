@@ -11,15 +11,30 @@ app.use(express.static('public'));
 const API_KEY = process.env.DEEPSEEK_API_KEY;
 if (!API_KEY) { console.error('❌ 错误：请设置环境变量 DEEPSEEK_API_KEY'); process.exit(1); }
 
-// 【关键】清洗函数，兼容 AI 返回 Markdown 代码块格式的 JSON，并提取大括号内容
+// =============== 超强清洗函数（兼容各种乱格式） ===============
 function cleanJSON(text) {
+    if (!text) return '';
     text = text.trim();
-    text = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start !== -1 && end !== -1) {
-        text = text.substring(start, end + 1);
+
+    // 1. 去掉开头 ```json 或 ``` 的代码块标记
+    text = text.replace(/^```(?:json)?\s*/i, '');
+    // 2. 去掉结尾的 ``` 代码块标记
+    text = text.replace(/\s*```$/, '');
+
+    // 3. 找到第一个 { 和最后一个 } 之间的内容（提取最外层 JSON 对象）
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        text = text.substring(firstBrace, lastBrace + 1);
     }
+
+    // 4. 如果还是没有 JSON 大括号，就尝试提取数组（用于兼容纯数组格式）
+    const firstBracket = text.indexOf('[');
+    const lastBracket = text.lastIndexOf(']');
+    if (firstBrace === -1 && firstBracket !== -1 && lastBracket !== -1) {
+        text = text.substring(firstBracket, lastBracket + 1);
+    }
+
     return text;
 }
 
@@ -47,33 +62,43 @@ app.post('/api/generate-plan', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
             body: JSON.stringify({
-                model: 'deepseek-v4-flash', 
+                model: 'deepseek-v4-flash',
                 messages,
                 max_tokens: 1500,
                 temperature: 1.0,
                 top_p: 1.0
-                // ✅ 已删除 thinking_mode，响应速度大幅提升！
             })
         });
 
         const data = await response.json();
-        if (!response.ok || !data.choices) throw new Error(data.error?.message || 'API错误');
-        
-        let content = data.choices[0].message.content;
+        if (!response.ok || !data.choices) {
+            console.error('DeepSeek API 错误:', data.error || '未知错误');
+            throw new Error(data.error?.message || 'API请求失败');
+        }
+
+        const content = data.choices[0].message.content;
 
         if (action === 'generate') {
             try {
-                const parsed = JSON.parse(cleanJSON(content));
+                const cleaned = cleanJSON(content);
+                const parsed = JSON.parse(cleaned);
+                
+                // 二次校验：如果缺少关键字段，提供友好提示
+                if (!parsed.mainGoal || !parsed.weeklyGoal || !parsed.todayTasks) {
+                    throw new Error('返回字段不完整');
+                }
                 res.json(parsed);
             } catch (e) {
-                res.status(500).json({ error: 'AI 返回格式错误，请重试' });
+                console.error('生成模式解析失败:', e, '\n原始内容:', content);
+                res.status(500).json({ error: 'AI思考超时或格式异常，请再试一次' });
             }
         } else {
+            // chat 模式直接返回文本
             res.json({ reply: content });
         }
     } catch (error) {
         console.error('AI错误:', error);
-        res.status(500).json({ error: 'AI 服务暂时不可用' });
+        res.status(500).json({ error: 'AI 服务暂时不可用，请稍后重试' });
     }
 });
 
@@ -87,15 +112,18 @@ app.post('/api/process-feedback', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
             body: JSON.stringify({
-                model: 'deepseek-v4-flash', 
+                model: 'deepseek-v4-flash',
                 messages: [{ role: 'system', content: systemPrompt }],
                 max_tokens: 300,
                 temperature: 0.7
             })
         });
         const data = await response.json();
-        res.json(JSON.parse(cleanJSON(data.choices[0].message.content)));
+        if (!data.choices) throw new Error('无返回值');
+        const cleaned = cleanJSON(data.choices[0].message.content);
+        res.json(JSON.parse(cleaned));
     } catch (error) {
+        console.error('反馈处理失败:', error);
         res.status(500).json({ error: 'AI 服务暂时不可用' });
     }
 });
