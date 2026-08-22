@@ -102,7 +102,35 @@ function updateAllUI() {
 
     const active = getActive();
     document.getElementById('activeCount').textContent = active.length + ' 个';
+    
+    // 渲染每个小目标时，加上时间计划标签
     const container = document.getElementById('activeGoalsContainer');
+    container.innerHTML = active.map(g => {
+        const doneCount = g.subGoals.filter(s => s.done).length;
+        const total = g.subGoals.length;
+        return `
+            <div class="active-goal-card" style="display:block; margin-bottom:16px;" onclick="openDetail('${g.id}')">
+                <div style="font-weight:700; font-size:16px;">🎯 ${g.mainGoal}</div>
+                <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">已完成 ${doneCount}/${total} 个小目标</div>
+                <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+                    ${g.subGoals.map((s, i) => {
+                        // 根据 frequency 和 interval 显示时间计划
+                        let timeLabel = '';
+                        if (s.frequency === 'interval') {
+                            timeLabel = `每 ${s.interval} 天 1 次`;
+                        } else {
+                            timeLabel = '每天 1 次';
+                        }
+                        return `
+                            <div style="background:${s.done ? 'var(--success)' : 'var(--input-bg)'}; padding:8px; border-radius:8px; font-size:14px;">
+                                ${s.done ? '✅' : '⬜'} ${s.title} <span style="font-size:11px; color:var(--text-secondary);">(${timeLabel})</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
 
     if (!active.length) {
         container.innerHTML = `<div class="text-secondary text-center" style="padding:24px 0;">暂无目标</div>`;
@@ -167,12 +195,23 @@ async function generateFinalPlan() {
 
     if (plan.mainGoal && plan.subGoals) {
         const newGoal = {
-            id: 'g'+Date.now(),
+            id: 'g' + Date.now(),
             mainGoal: plan.mainGoal,
-            subGoals: plan.subGoals.map(s => ({ id: 'sg'+Date.now()+Math.random(), title: s.title, description: s.description || '', done: false, feedback: '', reply: '' })),
+            subGoals: plan.subGoals.map((s, index) => ({
+                id: 'sg' + Date.now() + Math.random(),
+                title: s.title,
+                description: s.description || '',
+                // 【新增】时间计划字段（默认每天1次，AI可以稍后优化）
+                frequency: 'daily',  // 可选 'daily' 或 'interval'
+                interval: 1,        // 如果是 interval，表示每 N 天 1 次
+                done: false,
+                feedback: '',
+                reply: ''
+            })),
             status: 'active',
             totalXp: 0
         };
+        
         goals.push(newGoal);
         saveData();
         closeModal();
@@ -194,8 +233,16 @@ function openDetail(id) {
     let html = `<div class="card" style="margin-bottom:16px;">
         <h3>🎯 ${g.mainGoal}</h3>
         <div style="margin-top:16px;">
-            <div style="font-weight:600; margin-bottom:10px;">📌 ${t('subGoals')}</div>
-            ${g.subGoals.map((s, i) => `
+            <div style="font-weight:600; margin-bottom:10px;">📌 小目标</div>
+            ${g.subGoals.map((s, i) => {
+                // 计算时间计划
+                let timeLabel = '';
+                if (s.frequency === 'interval') {
+                    timeLabel = `每 ${s.interval} 天 1 次`;
+                } else {
+                    timeLabel = '每天 1 次';
+                }
+                return `
                 <div style="border:1px solid var(--card-border); border-radius:12px; padding:12px; margin-bottom:10px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div style="font-weight:500;">${s.done ? '✅' : '⬜'} ${s.title}</div>
@@ -204,14 +251,16 @@ function openDetail(id) {
                             ${s.feedback ? `<button class="btn-outline" onclick="viewSubGoalFeedback('${g.id}', '${s.id}')">看反馈</button>` : ''}
                         </div>
                     </div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">⏰ ${timeLabel}</div>
                     ${s.description ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">${s.description}</div>` : ''}
                 </div>
-            `).join('')}
+                `;
+            }).join('')}
         </div>
-        <div style="margin-top:12px; font-size:13px; color:var(--text-secondary);">${t('xp')}: ⭐ ${g.totalXp}</div>
+        <div style="margin-top:12px; font-size:13px; color:var(--text-secondary);">修为: ⭐ ${g.totalXp}</div>
     </div>
     <div style="text-align:center;">
-        <button class="btn-outline" style="color:#c0392b;" onclick="deleteGoal('${g.id}')">${t('delete')}</button>
+        <button class="btn-outline" style="color:#c0392b;" onclick="deleteGoal('${g.id}')">删除目标</button>
     </div>`;
 
     document.getElementById('detailTaskList').innerHTML = html;
