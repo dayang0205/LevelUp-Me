@@ -240,10 +240,11 @@ function finishOnboarding() {
 }
 
 // ================================================================
-// 5. 语音识别功能（终极防叠字版 - 覆盖式）
+// 5. 语音识别功能（防停顿丢字 + 长按说话）
 // ================================================================
 let recognition = null;
 let isListening = false;
+let accumulatedText = ''; // 保存已确定的文本
 
 function setupVoice() {
     if (!window.isSecureContext) {
@@ -255,45 +256,58 @@ function setupVoice() {
         showToast('❌ 当前浏览器不支持语音识别，请使用 Chrome 或 Edge');
         return;
     }
+
     recognition = new SpeechRecognition();
     recognition.lang = 'zh-CN';
-    recognition.interimResults = true;
-    recognition.continuous = true;
+    recognition.interimResults = true; // 允许实时显示临时结果
+    recognition.continuous = true;    // 持续识别，直到手动停止
     recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
-        let finalTranscript = '';
         let interimTranscript = '';
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-                finalTranscript += transcript;
+                // 如果是最终结果，把它累积到总量里
+                accumulatedText += transcript;
             } else {
+                // 如果是临时结果，累加到临时变量
                 interimTranscript += transcript;
             }
         }
 
-        // 找出当前激活的输入框
         const activeInput = 
             document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
             document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
             null;
 
         if (activeInput) {
-            // 【核心修复】整段覆盖，绝不追加！这样绝不会叠字
-            activeInput.value = finalTranscript + interimTranscript;
+            // 显示 = 已确认的文本 + 临时文本（绝不使用叠加的方式，避免叠字）
+            activeInput.value = accumulatedText + interimTranscript;
         }
     };
 
     recognition.onerror = function(event) {
+        // 如果用户主动停止，报 aborted 错误是正常的，忽略即可
         if (event.error !== 'aborted') {
             showToast('❌ 语音识别失败: ' + event.error);
         }
+        // 如果出错，也要恢复状态
         stopListening();
     };
+
     recognition.onend = function() {
-        stopListening();
+        // 【关键修复】即使停顿导致识别结束，如果用户还按住没松开，就自动重启
+        if (isListening) {
+            try {
+                recognition.start(); // 重新开始识别，累积文字不会丢
+            } catch (e) {
+                // 某些情况可能无法重启，忽略即可
+            }
+        } else {
+            stopListening();
+        }
     };
 }
 
@@ -314,13 +328,15 @@ function startListening(e) {
     } else if (newGoalModal && newGoalModal.classList.contains('show')) {
         voiceBtn = document.getElementById('newGoalVoiceBtn');
     }
+
     if (voiceBtn) {
         voiceBtn.innerHTML = '⏹ 松开结束';
         voiceBtn.style.background = '#e74c3c';
         voiceBtn.style.color = '#fff';
     }
 
-    // 【关键】开始前清空输入框，消除一切旧文字
+    // 清空之前的累积文本和输入框
+    accumulatedText = '';
     const activeInput = 
         feedbackModal && feedbackModal.classList.contains('show') ? document.getElementById('feedbackInput') :
         newGoalModal && newGoalModal.classList.contains('show') ? document.getElementById('newGoalInput') :
@@ -329,7 +345,11 @@ function startListening(e) {
         activeInput.value = '';
     }
 
-    recognition.start();
+    try {
+        recognition.start();
+    } catch (e) {
+        // 如果已经启动，忽略
+    }
     showToast('🎙️ 正在录音... 松开结束');
 }
 
