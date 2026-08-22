@@ -317,6 +317,7 @@ function startListening(e) {
     if (e) e.preventDefault();
     isListening = true;
 
+    // 找出当前激活的语音按钮，修改样式
     let voiceBtn = null;
     const feedbackModal = document.getElementById('feedbackModal');
     const newGoalModal = document.getElementById('newGoalModal');
@@ -325,21 +326,27 @@ function startListening(e) {
     } else if (newGoalModal && newGoalModal.classList.contains('show')) {
         voiceBtn = document.getElementById('newGoalVoiceBtn');
     }
-
     if (voiceBtn) {
         voiceBtn.innerHTML = '⏹ 松开结束';
         voiceBtn.style.background = '#e74c3c';
         voiceBtn.style.color = '#fff';
     }
 
-    accumulatedText = '';
+    // 【关键修改】不要清空accumulatedText和输入框！而是把当前输入框的内容作为基础
     const activeInput = 
         feedbackModal && feedbackModal.classList.contains('show') ? document.getElementById('feedbackInput') :
         newGoalModal && newGoalModal.classList.contains('show') ? document.getElementById('newGoalInput') :
         null;
-    if (activeInput) activeInput.value = '';
+    if (activeInput) {
+        // 如果输入框已有内容，把它作为累积内容的基础，这样新识别的内容会追加在后面
+        accumulatedText = activeInput.value;
+    } else {
+        accumulatedText = '';
+    }
 
-    try { recognition.start(); } catch (e) {}
+    try {
+        recognition.start();
+    } catch (e) {}
     showToast('🎙️ 正在录音... 松开结束');
 }
 
