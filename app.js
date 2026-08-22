@@ -240,10 +240,11 @@ function finishOnboarding() {
 }
 
 // ================================================================
-// 5. 语音识别功能（实时显示）
+// 5. 语音识别功能（修复叠字问题）
 // ================================================================
 let recognition = null;
 let isListening = false;
+let voiceBaseText = ''; // 【关键修复】保存语音开始前输入框里已有的内容
 
 function setupVoice() {
     if (!window.isSecureContext) {
@@ -257,7 +258,7 @@ function setupVoice() {
     }
     recognition = new SpeechRecognition();
     recognition.lang = 'zh-CN';
-    recognition.interimResults = true; // 实时显示
+    recognition.interimResults = true; 
     recognition.continuous = false;
     recognition.maxAlternatives = 1;
 
@@ -269,13 +270,15 @@ function setupVoice() {
             if (event.results[i].isFinal) finalTranscript += transcript;
             else interimTranscript += transcript;
         }
+        
         const activeInput = 
             document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
             document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
             null;
+
         if (activeInput) {
-            const baseContent = activeInput.value.replace(interimTranscript, '').replace(finalTranscript, '');
-            activeInput.value = baseContent + interimTranscript + finalTranscript;
+            // 【核心修复】直接覆盖赋值：原内容 + 最终结果 + 临时结果，绝不使用 replace！
+            activeInput.value = voiceBaseText + finalTranscript + interimTranscript;
         }
     };
     recognition.onerror = function(event) { showToast('❌ 语音识别失败: ' + event.error); stopListening(); };
@@ -287,6 +290,15 @@ function startListening() {
     if (!recognition) return;
     if (isListening) { stopListening(); return; }
     isListening = true;
+
+    // 【关键修复】开始说话前，把当前输入框里的内容暂存起来
+    const activeInput = 
+        document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
+        document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
+        null;
+    
+    voiceBaseText = activeInput ? activeInput.value : '';
+    
     recognition.start();
     showToast('🎙️ 请开始说话...');
 }
