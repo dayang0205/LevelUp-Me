@@ -818,3 +818,15 @@ input:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset:
     .feedback-modal-overlay { border-radius: 0; }
     .onboarding { border-radius: 0; }
 }
+
+/* 思考中动画 */
+.thinking-dots {
+    display: inline-block;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0% { opacity: 0.2; }
+    50% { opacity: 1; }
+    100% { opacity: 0.2; }
+}
