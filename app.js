@@ -59,13 +59,13 @@ function applyLanguage() {
 // ================================================================
 // 1. 数据持久化核心（新结构：主/周/日）
 // ================================================================
-const STORAGE_KEY = 'xiushen_data'; // 建议改为 'xiushen_data_v2' 以免冲突
+const STORAGE_KEY = 'xiushen_data_v2';
 let goals = [];
 let userProfile = {};
 let selectedGoalId = null;
 let pendingCheckinGoalId = null;
 let pendingCheckinTaskId = null;
-let chatHistory = []; // 多轮对话历史
+let chatHistory = [];
 
 const REALMS = [
     { level: 0, name: '凡人', emoji: '🧘', xpRequired: 0 },
@@ -86,20 +86,18 @@ function getSeedData() {
     return { goals: [], userProfile: { name: '无名道友', avatar: '🧘', bio: '一名对自我成长充满热情的探索者。', expect: '希望 AI 能温柔而坚定地陪伴我。' } };
 }
 
-// 【新增】自动兼容旧数据，防止因格式不同导致 JS 崩溃
+// 自动兼容旧数据（防止因格式不同导致崩溃）
 function normalizeData(data) {
     if (data.goals) {
         data.goals = data.goals.map(g => {
-            // 如果旧数据是 tasks 数组，自动转换成 todayTasks
             if (!g.todayTasks && g.tasks) {
                 g.todayTasks = g.tasks.map(t => ({ 
                     text: t.title || t.task || t, 
                     done: t.status === 'done' 
                 }));
             }
-            // 如果没有任务，设为空数组
             if (!g.todayTasks) g.todayTasks = [];
-            delete g.tasks; // 删除旧字段，避免干扰
+            delete g.tasks;
             return g;
         });
     }
@@ -107,11 +105,21 @@ function normalizeData(data) {
 }
 
 function loadData() {
+    // 自动迁移旧数据
+    const v1Raw = localStorage.getItem('xiushen_data');
+    const v2Raw = localStorage.getItem(STORAGE_KEY);
+    if (!v2Raw && v1Raw) {
+        try {
+            const v1Data = JSON.parse(v1Raw);
+            const freshSeed = getSeedData();
+            if (v1Data.userProfile) freshSeed.userProfile = v1Data.userProfile;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(freshSeed));
+        } catch (e) {}
+    }
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
         try {
-            let data = JSON.parse(raw);
-            // 【关键】调用 normalizeData，确保数据兼容
+            const data = JSON.parse(raw);
             if (data.goals && data.userProfile) return normalizeData(data);
         } catch (e) {}
     }
@@ -240,11 +248,11 @@ function finishOnboarding() {
 }
 
 // ================================================================
-// 5. 语音识别功能（防停顿丢字 + 长按说话）
+// 5. 语音识别功能（防叠字 + 防停顿丢字 + 长按录音）
 // ================================================================
 let recognition = null;
 let isListening = false;
-let accumulatedText = ''; // 保存已确定的文本
+let accumulatedText = '';
 
 function setupVoice() {
     if (!window.isSecureContext) {
@@ -256,55 +264,41 @@ function setupVoice() {
         showToast('❌ 当前浏览器不支持语音识别，请使用 Chrome 或 Edge');
         return;
     }
-
     recognition = new SpeechRecognition();
     recognition.lang = 'zh-CN';
-    recognition.interimResults = true; // 允许实时显示临时结果
-    recognition.continuous = true;    // 持续识别，直到手动停止
+    recognition.interimResults = true;
+    recognition.continuous = true;
     recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
         let interimTranscript = '';
-
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-                // 如果是最终结果，把它累积到总量里
                 accumulatedText += transcript;
             } else {
-                // 如果是临时结果，累加到临时变量
                 interimTranscript += transcript;
             }
         }
-
         const activeInput = 
             document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
             document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
             null;
-
         if (activeInput) {
-            // 显示 = 已确认的文本 + 临时文本（绝不使用叠加的方式，避免叠字）
             activeInput.value = accumulatedText + interimTranscript;
         }
     };
 
     recognition.onerror = function(event) {
-        // 如果用户主动停止，报 aborted 错误是正常的，忽略即可
         if (event.error !== 'aborted') {
             showToast('❌ 语音识别失败: ' + event.error);
         }
-        // 如果出错，也要恢复状态
         stopListening();
     };
 
     recognition.onend = function() {
-        // 【关键修复】即使停顿导致识别结束，如果用户还按住没松开，就自动重启
         if (isListening) {
-            try {
-                recognition.start(); // 重新开始识别，累积文字不会丢
-            } catch (e) {
-                // 某些情况可能无法重启，忽略即可
-            }
+            try { recognition.start(); } catch (e) {}
         } else {
             stopListening();
         }
@@ -319,7 +313,6 @@ function startListening(e) {
     if (e) e.preventDefault();
     isListening = true;
 
-    // 找出当前激活的语音按钮，修改样式
     let voiceBtn = null;
     const feedbackModal = document.getElementById('feedbackModal');
     const newGoalModal = document.getElementById('newGoalModal');
@@ -335,21 +328,14 @@ function startListening(e) {
         voiceBtn.style.color = '#fff';
     }
 
-    // 清空之前的累积文本和输入框
     accumulatedText = '';
     const activeInput = 
         feedbackModal && feedbackModal.classList.contains('show') ? document.getElementById('feedbackInput') :
         newGoalModal && newGoalModal.classList.contains('show') ? document.getElementById('newGoalInput') :
         null;
-    if (activeInput) {
-        activeInput.value = '';
-    }
+    if (activeInput) activeInput.value = '';
 
-    try {
-        recognition.start();
-    } catch (e) {
-        // 如果已经启动，忽略
-    }
+    try { recognition.start(); } catch (e) {}
     showToast('🎙️ 正在录音... 松开结束');
 }
 
@@ -357,7 +343,6 @@ function stopListening() {
     if (recognition) recognition.stop();
     isListening = false;
 
-    // 恢复按钮样式
     const feedbackModal = document.getElementById('feedbackModal');
     const newGoalModal = document.getElementById('newGoalModal');
     if (feedbackModal && feedbackModal.classList.contains('show')) {
@@ -392,7 +377,7 @@ function cancelListening(e) {
 }
 
 // ================================================================
-// 6. AI 多轮对话与结构化目标生成
+// 6. AI 多轮对话与结构化目标生成（带思考提示）
 // ================================================================
 function appendChat(sender, text) {
     const win = document.getElementById('chatWindow');
@@ -401,12 +386,47 @@ function appendChat(sender, text) {
     win.scrollTop = win.scrollHeight;
 }
 
+function appendThinking() {
+    const win = document.getElementById('chatWindow');
+    if (!win) return null;
+    const div = document.createElement('div');
+    div.style.marginBottom = '8px';
+    div.style.color = 'var(--text-secondary)';
+    div.innerHTML = `<strong>AI教练:</strong> <span class="thinking-dots">🤔 思考中</span>`;
+    win.appendChild(div);
+    win.scrollTop = win.scrollHeight;
+    return div;
+}
+
+function startThinkingAnimation(el) {
+    if (!el) return;
+    const span = el.querySelector('.thinking-dots');
+    if (!span) return;
+    let dots = 0;
+    span.dataset.interval = setInterval(() => {
+        dots = (dots + 1) % 4;
+        span.textContent = '🤔 思考中' + '.'.repeat(dots);
+    }, 500);
+}
+
+function stopThinkingAnimation(el) {
+    if (!el) return;
+    const span = el.querySelector('.thinking-dots');
+    if (span && span.dataset.interval) {
+        clearInterval(span.dataset.interval);
+    }
+}
+
 async function chatWithAI() {
     const input = document.getElementById('newGoalInput').value.trim();
     if (!input) return;
+
     appendChat('你', input);
     document.getElementById('newGoalInput').value = '';
     chatHistory.push({ role: 'user', content: input });
+
+    const thinkingEl = appendThinking();
+    startThinkingAnimation(thinkingEl);
 
     try {
         const res = await fetch('/api/generate-plan', {
@@ -415,12 +435,25 @@ async function chatWithAI() {
             body: JSON.stringify({ action: 'chat', history: chatHistory, bio: userProfile.bio })
         });
         const data = await res.json();
+        
         if (data.reply) {
-            appendChat('AI教练', data.reply);
+            stopThinkingAnimation(thinkingEl);
+            if (thinkingEl) {
+                thinkingEl.innerHTML = `<strong>AI教练:</strong> ${data.reply}`;
+            } else {
+                appendChat('AI教练', data.reply);
+            }
             chatHistory.push({ role: 'assistant', content: data.reply });
+        } else {
+            throw new Error('无回复内容');
         }
     } catch (e) {
-        appendChat('系统', '网络错误，请重试');
+        stopThinkingAnimation(thinkingEl);
+        if (thinkingEl) {
+            thinkingEl.innerHTML = `<strong>AI教练:</strong> <span style="color:#c0392b;">抱歉，网络错误，请重试</span>`;
+        } else {
+            appendChat('系统', '网络错误，请重试');
+        }
     }
 }
 
@@ -430,30 +463,43 @@ async function generateFinalPlan() {
         chatHistory.push({ role: 'user', content: input });
         document.getElementById('newGoalInput').value = '';
     }
-    const res = await fetch('/api/generate-plan', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ action: 'generate', history: chatHistory, bio: userProfile.bio })
-    });
-    const plan = await res.json();
 
-    if (plan.mainGoal) {
-        const newGoal = {
-            id: 'g'+Date.now(),
-            mainGoal: plan.mainGoal,
-            weeklyGoal: plan.weeklyGoal,
-            todayTasks: plan.todayTasks.map(t => ({ text: t, done: false })),
-            status: 'active',
-            totalXp: 0,
-            history: []
-        };
-        goals.push(newGoal);
-        saveData();
-        closeModal();
-        updateAllUI();
-        showToast('✅ 目标已生成并激活！');
-    } else {
-        alert(plan.error || '生成失败，请再试一次');
+    const thinkingEl = appendThinking();
+    startThinkingAnimation(thinkingEl);
+
+    try {
+        const res = await fetch('/api/generate-plan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'generate', history: chatHistory, bio: userProfile.bio })
+        });
+        const plan = await res.json();
+
+        stopThinkingAnimation(thinkingEl);
+
+        if (plan.mainGoal) {
+            const newGoal = {
+                id: 'g'+Date.now(),
+                mainGoal: plan.mainGoal,
+                weeklyGoal: plan.weeklyGoal,
+                todayTasks: plan.todayTasks.map(t => ({ text: t, done: false })),
+                status: 'active',
+                totalXp: 0,
+                history: []
+            };
+            goals.push(newGoal);
+            saveData();
+            closeModal();
+            updateAllUI();
+            showToast('✅ 目标已生成并激活！');
+        } else {
+            if (thinkingEl) thinkingEl.innerHTML = `<strong>AI教练:</strong> <span style="color:#c0392b;">生成失败，请再试一次</span>`;
+            showToast('⚠️ 生成失败，请重试');
+        }
+    } catch (e) {
+        stopThinkingAnimation(thinkingEl);
+        if (thinkingEl) thinkingEl.innerHTML = `<strong>AI教练:</strong> <span style="color:#c0392b;">生成失败，请再试一次</span>`;
+        showToast('⚠️ 生成失败，请重试');
     }
 }
 
@@ -508,10 +554,6 @@ function openDetail(id) {
 }
 
 function closeDetail() { document.getElementById('detailOverlay').classList.remove('show'); selectedGoalId = null; }
-function toggleFeedback(goalId, taskId) {
-    const el = document.getElementById(`feedback-${goalId}-${taskId}`);
-    if (el) el.classList.toggle('show');
-}
 
 function toggleTodayTask(goalId, taskIndex) {
     const g = goals.find(x => x.id === goalId);
