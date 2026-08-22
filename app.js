@@ -277,49 +277,147 @@ function openNewGoalModal() {
 function closeModal() { document.getElementById('newGoalModal').classList.remove('show'); }
 
 // ================================================================
-// 5. 语音（防叠字 + 停顿）
+// 5. 语音识别功能（稳定版 - 长按录音/松开停止/自动断句/防叠字）
 // ================================================================
 let recognition = null;
 let isListening = false;
-let accumulatedText = '';
+let accumulatedText = ''; // 保存已确认的最终文本
+let voiceBtn = null;
 
 function setupVoice() {
-    if (!window.isSecureContext) return;
-    recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    if (!window.isSecureContext) {
+        showToast('❌ 语音功能需要在 HTTPS 或 localhost 环境下使用');
+        return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        showToast('❌ 当前浏览器不支持语音识别，请使用 Chrome 或 Edge');
+        return;
+    }
+    recognition = new SpeechRecognition();
     recognition.lang = 'zh-CN';
-    recognition.interimResults = true;
-    recognition.continuous = true;
+    recognition.interimResults = true; // 允许实时显示临时结果
+    recognition.continuous = true;    // 持续识别，直到手动停止
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
-        let interim = '';
+        let interimTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
             let transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-                if (!/[。！？]$/.test(transcript)) transcript += '。';
+                // 自动断句：如果末尾没有标点，自动加句号
+                if (transcript && !/[。！？!?]$/.test(transcript)) {
+                    transcript += '。';
+                }
                 accumulatedText += transcript;
             } else {
-                interim += transcript;
+                interimTranscript += transcript;
             }
         }
-        document.getElementById('feedbackInput').value = accumulatedText + interim;
+
+        // 找出当前激活的输入框
+        const activeInput = 
+            document.getElementById('feedbackModal').classList.contains('show') ? document.getElementById('feedbackInput') :
+            document.getElementById('newGoalModal').classList.contains('show') ? document.getElementById('newGoalInput') :
+            null;
+
+        if (activeInput) {
+            // 【核心防叠字】显示 = 已确认文本 + 临时文本（绝不使用叠加方式）
+            activeInput.value = accumulatedText + interimTranscript;
+        }
+    };
+
+    recognition.onerror = function(event) {
+        if (event.error !== 'aborted') {
+            showToast('❌ 语音识别失败: ' + event.error);
+        }
+        stopListening();
     };
 
     recognition.onend = function() {
-        if (isListening) recognition.start();
-        else stopListening();
+        // 【防停顿丢字】如果用户还按住没松开，自动重启识别
+        if (isListening) {
+            try { recognition.start(); } catch (e) {}
+        } else {
+            stopListening();
+        }
     };
 }
 
-function startListening() {
+function startListening(e) {
     if (!recognition) setupVoice();
+    if (!recognition) return;
+    if (isListening) return;
+
+    if (e) e.preventDefault();
     isListening = true;
-    accumulatedText = document.getElementById('feedbackInput').value;
-    recognition.start();
+
+    // 找出当前激活的语音按钮，修改样式
+    const feedbackModal = document.getElementById('feedbackModal');
+    const newGoalModal = document.getElementById('newGoalModal');
+    if (feedbackModal && feedbackModal.classList.contains('show')) {
+        voiceBtn = document.getElementById('feedbackVoiceBtn');
+    } else if (newGoalModal && newGoalModal.classList.contains('show')) {
+        voiceBtn = document.getElementById('newGoalVoiceBtn');
+    }
+    if (voiceBtn) {
+        voiceBtn.innerHTML = '⏹ 松开结束';
+        voiceBtn.style.background = '#e74c3c';
+        voiceBtn.style.color = '#fff';
+    }
+
+    // 不覆盖已有内容，而是将当前输入框内容作为累积文本的基础
+    const activeInput = 
+        feedbackModal && feedbackModal.classList.contains('show') ? document.getElementById('feedbackInput') :
+        newGoalModal && newGoalModal.classList.contains('show') ? document.getElementById('newGoalInput') :
+        null;
+    if (activeInput) {
+        accumulatedText = activeInput.value;
+    } else {
+        accumulatedText = '';
+    }
+
+    try { recognition.start(); } catch (e) {}
+    showToast('🎙️ 正在录音... 松开结束');
 }
 
 function stopListening() {
+    if (recognition) recognition.stop();
     isListening = false;
-    recognition.stop();
+
+    // 恢复按钮样式
+    const feedbackModal = document.getElementById('feedbackModal');
+    const newGoalModal = document.getElementById('newGoalModal');
+    if (feedbackModal && feedbackModal.classList.contains('show')) {
+        const btn = document.getElementById('feedbackVoiceBtn');
+        if (btn) {
+            btn.innerHTML = '🎙️ 按住说话';
+            btn.style.background = '';
+            btn.style.color = '';
+        }
+    } else if (newGoalModal && newGoalModal.classList.contains('show')) {
+        const btn = document.getElementById('newGoalVoiceBtn');
+        if (btn) {
+            btn.innerHTML = '🎙️ 按住说话';
+            btn.style.background = '';
+            btn.style.color = '';
+        }
+    }
+    voiceBtn = null;
+    showToast('✅ 录音结束');
+}
+
+function cancelListening(e) {
+    if (!isListening) return;
+    if (e && voiceBtn) {
+        const rect = voiceBtn.getBoundingClientRect();
+        const x = e.clientX || (e.touches && e.touches[0].clientX);
+        const y = e.clientY || (e.touches && e.touches[0].clientY);
+        if (x < rect.left - 20 || x > rect.right + 20 || y < rect.top - 20 || y > rect.bottom + 20) {
+            stopListening();
+            showToast('🚫 已取消录音');
+        }
+    }
 }
 
 // ================================================================
