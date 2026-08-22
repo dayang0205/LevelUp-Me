@@ -1,137 +1,96 @@
 // server.js
-require('dotenv').config(); // 读取 .env 文件中的 DEEPSEEK_API_KEY
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const app = express();
 
-// 允许跨域请求（只允许你的域名）
-app.use(cors({
-    origin: ['https://levelupme.org', 'https://www.levelupme.org']
-}));
+app.use(cors({ origin: ['https://levelupme.org', 'https://www.levelupme.org'] }));
 app.use(express.json());
-app.use(express.static('public')); // 托管前端静态文件（非常重要！）
+app.use(express.static('public'));
 
-// 从环境变量读取 API 密钥
 const API_KEY = process.env.DEEPSEEK_API_KEY;
-if (!API_KEY) {
-    console.error('❌ 错误：请设置环境变量 DEEPSEEK_API_KEY');
-    process.exit(1);
-}
+if (!API_KEY) { console.error('❌ 错误：请设置环境变量 DEEPSEEK_API_KEY'); process.exit(1); }
 
-// ============================================================
-// 接口1：生成每日修炼计划（场景化教学优化版）
-// ============================================================
+// 接口1：多轮对话式生成目标计划
 app.post('/api/generate-plan', async (req, res) => {
-    const { goal, days, bio, expect } = req.body;
+    const { action, history = [], bio, expect } = req.body;
 
-    const systemPrompt = `你是一位精通情境化教学的人生教练。用户想用 ${days} 天达成目标："${goal}"。
-用户个人简述：${bio || '无'}
-用户对AI的期望：${expect || '无'}
-
-针对"${goal}"（如果是语言学习类，如英语口语），请生成 ${days} 天的每日修炼任务，要求：
-1. 任务必须是具体的【模拟场景】练习，而不是抽象的“背单词”或“练口语”。
-   例如："模拟向客户介绍产品并回答价格异议"，"用英文完成一次与合作伙伴的餐厅点餐对话"。
-2. 每天的任务量要轻松，确保用户能抽出15-20分钟完成。
-3. 每天任务用一句简短指令（<25字）。
-4. 输出必须是纯 JSON 数组，格式：[{"day":1, "task":"..."}, ...]，不要包含任何其他文字。`;
+    const systemPrompt = `你是一位睿智且温暖的人生教练。你的工作流程：
+1. 当 action 为 'chat' 时：仔细阅读用户的历史对话，针对用户当前的设想，提出一个清晰的、能帮他明确方向的澄清问题（例如：你练习英语口语的具体场景是什么？是商务会议还是日常交流？），回复一句话。
+2. 当 action 为 'generate' 时：根据所有的对话历史，为用户生成三个层级的计划，并严格按照JSON格式输出：
+{
+  "mainGoal": "主要目标描述（长期）",
+  "weeklyGoal": "本周需要达成的具体目标",
+  "todayTasks": ["今日具体的1个小任务", "今日具体的第2个小任务", "今日具体的第3个小任务"]
+}
+注意：每日任务极其精简，最多3个，确保用户易完成。不要输出任何其他文字。`;
 
     try {
+        const messages = [
+            { role: 'system', content: systemPrompt },
+            ...history
+        ];
+
         const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${API_KEY}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
             body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: `目标：${goal}` }
-                ],
-                max_tokens: 2000,
-                temperature: 0.7
+                model: 'deepseek-v4-flash', // [关键修改] 使用新版模型
+                messages,
+                max_tokens: 1500,
+                temperature: 1.0,
+                top_p: 1.0,
+                thinking_mode: "thinking" // [关键修改] 启用思考模式，提高生成质量
             })
         });
 
         const data = await response.json();
-
-        // 1. 检查 API 是否真的返回了数据
-        if (!response.ok || !data.choices) {
-            console.error('DeepSeek API 返回错误:', JSON.stringify(data));
-            throw new Error(data.error?.message || 'AI API 请求失败');
-        }
-
-        // 2. 安全地提取内容
+        if (!response.ok || !data.choices) throw new Error(data.error?.message || 'API错误');
+        
         const content = data.choices[0].message.content;
 
-        // 3. 【关键修复】必须用 const 声明变量！
-        const tasks = JSON.parse(content); 
-
-        // 4. 返回给前端
-        if (Array.isArray(tasks)) {
-            res.json({ tasks });
-        } else if (tasks.tasks && Array.isArray(tasks.tasks)) {
-            res.json({ tasks: tasks.tasks });
+        // 如果是生成模式，尝试解析 JSON
+        if (action === 'generate') {
+            try {
+                const parsed = JSON.parse(content);
+                res.json(parsed);
+            } catch (e) {
+                // 如果AI返回的不是纯JSON，加个兜底
+                res.status(500).json({ error: 'AI 返回格式错误，请重试' });
+            }
         } else {
-            throw new Error('返回格式错误，AI 生成的 JSON 无效');
+            // chat模式直接返回文本
+            res.json({ reply: content });
         }
-
     } catch (error) {
-        console.error('生成计划失败:', error);
-        res.status(500).json({ error: 'AI 服务暂时不可用，请稍后重试' });
-    }
-});
-
-// ============================================================
-// 接口2：处理打卡反馈（根据反思深度给经验值）
-// ============================================================
-app.post('/api/process-feedback', async (req, res) => {
-    const { feedback, goalTitle } = req.body;
-
-    const systemPrompt = `你是一位智慧且敏锐的AI学习教练。用户刚刚完成了当天的修炼，并写下了深刻的反思：
-"${feedback}"
-目标：${goalTitle || '未命名目标'}
-
-请根据这段反思：
-1. 敏锐地指出用户反思中体现出的【进步点】和【可改进点】（语气温暖且专业）。
-2. 根据用户反思的深度、具体性和积极性，给出修为加成值（xpBonus）：
-   - 如果反思非常具体（提到了具体表达、卡壳点、改进策略），给出 10~15 分。
-   - 如果反思一般，给出 5~9 分。
-   - 如果只是应付了事（比如“做了”、“还行”），给出 0~4 分。
-3. 输出 JSON 格式：{"reply": "...", "xpBonus": 数字}`;
-
-    try {
-        const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${API_KEY}`
-            },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: feedback }
-                ],
-                max_tokens: 300,
-                temperature: 0.8
-            })
-        });
-
-        const data = await response.json();
-        const result = JSON.parse(data.choices[0].message.content);
-        res.json(result);
-    } catch (error) {
-        console.error('处理反馈失败:', error);
+        console.error('AI错误:', error);
         res.status(500).json({ error: 'AI 服务暂时不可用' });
     }
 });
 
-// 健康检查
-app.get('/health', (req, res) => res.send('OK'));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`✅ LevelUp Me 后端已启动，端口 ${PORT}`);
-    console.log(`📌 允许的域名: https://levelupme.org`);
+// 接口2：根据用户反馈更新任务进度
+app.post('/api/process-feedback', async (req, res) => {
+    const { feedback, goalTitle } = req.body;
+    const systemPrompt = `你是一位关注细节的教练。用户在完成今日任务后写下了反馈："${feedback}"。请用2句话指出进步点和改进点，并输出JSON：{"reply": "...", "xpBonus": 0-15的数字}`;
+    
+    try {
+        const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+            body: JSON.stringify({
+                model: 'deepseek-v4-flash', // [关键修改] 使用新版模型
+                messages: [{ role: 'system', content: systemPrompt }],
+                max_tokens: 300,
+                temperature: 0.7
+            })
+        });
+        const data = await response.json();
+        res.json(JSON.parse(data.choices[0].message.content));
+    } catch (error) {
+        res.status(500).json({ error: 'AI 服务暂时不可用' });
+    }
 });
+
+app.get('/health', (req, res) => res.send('OK'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ 后端启动，端口 ${PORT}`));
